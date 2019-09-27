@@ -4,11 +4,10 @@ import { Col, Row, Container, Button } from 'react-bootstrap';
 class VideoBox extends React.Component {
     constructor(props) {
         super(props)
+        this.videoTag = React.createRef()
         this.createConnection = this.createConnection.bind(this)
     }
-    state = {
-        source: ""
-    };
+    
 
     componentDidMount() {
         navigator.mediaDevices.getUserMedia({video: true, audio: true})
@@ -18,7 +17,9 @@ class VideoBox extends React.Component {
         const configuration = {
             iceServers: [{ url: 'stun:stun2.1.google.com:19302' }]
           }
-          
+
+
+        connection = new RTCPeerConnection(configuration)
     }
 
     createConnection = (e) => {
@@ -27,9 +28,7 @@ class VideoBox extends React.Component {
     }
 
     handleVideo = (stream) => {
-        this.setState({
-            source: window.URL.createObjectURL(stream)
-        });
+        this.videoTag.current.srcObject = stream;
     }
 
     videoError = (err) => {
@@ -43,12 +42,12 @@ class VideoBox extends React.Component {
             <Container>
                 <Row>
                     <Col>
-                        <video style={ {height: 350, backgroundColor: 'gray'} } src={this.state.source} autoplay={true}></video>
+                        <video style={ {width: "100%"} } ref={this.videoTag} autoPlay></video>
                         <Button onClick={this.createConnection} variant="outline-primary">Connect</Button>
                         <Button variant="outline-primary">Disconnect</Button>
                     </Col>
                     <Col>
-                        <video style={ {height: 350, backgroundColor: 'gray'} }></video>
+                        <video style={ {width: "100%"} } ref={this.videoTag} autoPlay></video>
                         <Button variant="outline-primary">Connect</Button>
                         <Button variant="outline-primary">Disconnect</Button>
                     </Col>
