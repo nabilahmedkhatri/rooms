@@ -2,25 +2,41 @@ import React from 'react';
 import { Col, Row, Container, Button } from 'react-bootstrap';
 
 class VideoBox extends React.Component {
-   state = {
-       source: ""
-   };
+    constructor(props) {
+        super(props)
+        this.createConnection = this.createConnection.bind(this)
+    }
+    state = {
+        source: ""
+    };
 
-   componentDidMount() {
-       navigator.mediaDevices.getUserMedia({video: true, audio: true})
-       .then(this.handleVideo)
-       .catch(this.videoError); 
-   }
+    componentDidMount() {
+        navigator.mediaDevices.getUserMedia({video: true, audio: true})
+        .then(this.handleVideo)
+        .catch(this.videoError); 
 
-   handleVideo = (stream) => {
-       this.setState({
-           source: window.URL.createObjectURL(stream)
-       });
-   }
+        const configuration = {
+            iceServers: [{ url: 'stun:stun2.1.google.com:19302' }]
+          }
+          
+    }
 
-   videoError = (err) => {
-       alert(err)
-   }
+    createConnection = (e) => {
+            e.preventDefault();
+            console.log('The link was clicked.');
+    }
+
+    handleVideo = (stream) => {
+        this.setState({
+            source: window.URL.createObjectURL(stream)
+        });
+    }
+
+    videoError = (err) => {
+        alert(err)
+    }
+
+
 
     render() {
         return (
@@ -28,7 +44,7 @@ class VideoBox extends React.Component {
                 <Row>
                     <Col>
                         <video style={ {height: 350, backgroundColor: 'gray'} } src={this.state.source} autoplay={true}></video>
-                        <Button variant="outline-primary">Connect</Button>
+                        <Button onClick={this.createConnection} variant="outline-primary">Connect</Button>
                         <Button variant="outline-primary">Disconnect</Button>
                     </Col>
                     <Col>
