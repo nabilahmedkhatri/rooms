@@ -1,15 +1,14 @@
 import React from 'react'
 import { Col, Row, Container, Button } from 'react-bootstrap'
-import {Form, FormControl } from 'react-bootstrap'
+// eslint-disable-next-line
+import { Form, FormControl } from 'react-bootstrap'
 
-const ws = new WebSocket('ws://localhost:8080')
+const ws = new WebSocket('ws://192.168.1.237:8080')
 
-const configuration = {
-    iceServers: [{ url: 'stun:stun2.1.google.com:19302' }]
-}
-
-var connection = new RTCPeerConnection(configuration)
-var otherUserName = "self"
+// eslint-disable-next-line
+let connection = null
+//let username = null
+let otherUsername = null
 
 class VideoBox extends React.Component {
     constructor(props) {
@@ -19,23 +18,30 @@ class VideoBox extends React.Component {
         this.createConnection = this.createConnection.bind(this)
         this.state = {
             username: "",
-            other_username: ""
+            otherUsername: ""
         }
 
     }
 
     change = (e) => {
-        this.setState( {
+        this.setState({
             [e.target.name]: e.target.value
         })
     }
 
     login = () => {
         console.log(this.state.username)
+        this.sendMessage({
+            type: 'login',
+            username: this.state.username
+        })
+
     }
 
     sendMessage = message => {
-        // message.otherUserName = otherUserName
+        if (otherUsername) {
+            message.otherUsername = otherUsername
+        }
 
         ws.send(JSON.stringify(message))
     }
@@ -51,10 +57,13 @@ class VideoBox extends React.Component {
 
         ws.onmessage = msg => {
             console.log('Got message', msg.data)
-
+            // eslint-disable-next-line
             const data = JSON.parse(msg.data)
 
             switch (data.type) {
+                case 'login':
+                    this.handleLogin(data.success)
+                    break
                 case 'video-connect':
                     this.handleVideo(data.success)
                     break
@@ -67,6 +76,8 @@ class VideoBox extends React.Component {
                 case 'candidate':
                     this.handleCandidate(data.candidate)
                     break
+                default:
+                    console.log("default switch")
 
             }
         }
@@ -78,7 +89,8 @@ class VideoBox extends React.Component {
         console.log('The link was clicked.');
         this.sendMessage('connection')
 
-        this.sendMessage({ type: 'login' })
+        otherUsername = this.state.otherUsername
+
         // create an offer
         connection.createOffer(
             offer => {
@@ -98,7 +110,7 @@ class VideoBox extends React.Component {
     }
 
     handleOffer = (offer, username) => {
-        var otherUsername = username
+        otherUsername = username
         console.log('handling offer ' + offer)
         connection.setRemoteDescription(new RTCSessionDescription(offer))
         console.log("this is the offer", offer)
@@ -117,7 +129,9 @@ class VideoBox extends React.Component {
         )
     }
 
-    handleVideo = async (success) => {
+
+
+    handleLogin = async (success) => {
         if (!success) {
             console.error("no good")
         }
@@ -132,6 +146,13 @@ class VideoBox extends React.Component {
             console.error(error)
         }
         this.videoTagLocal.current.srcObject = stream;
+
+        const configuration = {
+            iceServers: [{ url: 'stun:stun2.1.google.com:19302' }]
+        }
+
+        connection = new RTCPeerConnection(configuration)
+
 
         connection.addStream(stream)
 
@@ -167,10 +188,10 @@ class VideoBox extends React.Component {
             <Container>
                 <Row>
                     <Col>
-                        <video style={{ width: "100%" }} ref={this.videoTagLocal} autoPlay></video>
+                        <video muted style={{ width: "100%" }} ref={this.videoTagLocal} autoPlay></video>
                         <Form.Control onChange={this.change} name='username' type="text" placeholder="Your username" />
                         <Button onClick={this.login} variant="outline-primary">Login</Button>
-                        <Form.Control onChange={this.change} name='other_username' type="text" placeholder="Connect to" />
+                        <Form.Control onChange={this.change} name='otherUsername' type="text" placeholder="Connect to" />
                         <Button onClick={this.createConnection} variant="outline-primary">Connect</Button>
                         <Button variant="outline-primary">Disconnect</Button>
                     </Col>

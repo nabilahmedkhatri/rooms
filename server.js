@@ -49,37 +49,42 @@ wss.on('connection', ws => {
     switch (data.type) {
       case 'login':
         console.log('User logged', data.username)
-        if (!users["self"]) {
-          users["self"] = ws
-          ws.username = "self"
-          sendTo(ws, { type: 'video-connect', success: true })
+        if (users[data.username]) {
+          sendTo(ws, { type: 'login', success: false })
+        } else {
+          users[data.username] = ws
+          ws.username = data.username
+          sendTo(ws, { type: 'login', success: true })
         }
         break
 
       case 'offer':
-        console.log('Sending offer to: ', "self")
+        console.log('Sending offer to: ', data.otherUsername)
         ws.otherUsername = data.otherUsername
-        sendTo(users["self"], {
-          type: 'offer',
-          offer: data.offer,
-          username: "self"
-        })
+        if (users[data.otherUsername] != null) {
+          ws.otherUsername = data.otherUsername
+          sendTo(users[data.otherUsername], {
+            type: 'offer',
+            offer: data.offer,
+            username: ws.username
+          })
+        }
         break
       case 'answer':
         console.log('Sending answer to: ', data.otherUsername)
-        if (users["self"] != null) {
-          ws.otherUsername = "self"
-          sendTo(users['self'], {
+        if (users[data.otherUsername] != null) {
+          ws.otherUsername = data.otherUsername
+          sendTo(users[data.otherUsername], {
             type: 'answer',
             answer: data.answer
           })
         }
         break
       case 'candidate':
-        console.log('Sending candidate to: self')
+        console.log('Sending candidate to:', data.otherUsername)
 
-        if (users["self"] != null) {
-          sendTo(users["self"], {
+        if (users[data.otherUsername] != null) {
+          sendTo(users[data.otherUsername], {
             type: 'candidate',
             candidate: data.candidate
           })
