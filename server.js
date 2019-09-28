@@ -18,3 +18,9 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
     console.log("Server is running on port" + PORT); 
 });
+
+// websocket stuff
+const webSocketsServerPort = 8080; 
+const webSocketServer = require('websocket').server 
+const http = require('http')
+

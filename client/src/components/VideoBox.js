@@ -1,9 +1,9 @@
-import React from 'react';
-import { Col, Row, Container, Button } from 'react-bootstrap';
+import React from 'react'
+import { Col, Row, Container, Button } from 'react-bootstrap'
 
 class VideoBox extends React.Component {
     constructor(props) {
-        super(props);
+        super(props)
         this.videoTag = React.createRef()
     }
 
@@ -14,7 +14,7 @@ class VideoBox extends React.Component {
     }
 
    handleVideo = (stream) => {
-       this.videoTag.current.srcObject = stream;
+       this.videoTag.current.srcObject = stream
    }
 
    videoError = (err) => {
