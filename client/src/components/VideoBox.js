@@ -1,5 +1,6 @@
 import React from 'react'
 import { Col, Row, Container, Button } from 'react-bootstrap'
+import {Form, FormControl } from 'react-bootstrap'
 
 const ws = new WebSocket('ws://localhost:8080')
 
@@ -15,7 +16,21 @@ class VideoBox extends React.Component {
         this.videoTagLocal = React.createRef()
         this.videoTagRemote = React.createRef()
         this.createConnection = this.createConnection.bind(this)
+        this.state = {
+            username: "",
+            other_username: ""
+        }
 
+    }
+
+    change = (e) => {
+        this.setState( {
+            [e.target.name]: e.target.value
+        })
+    }
+
+    login = () => {
+        console.log(this.state.username)
     }
 
     sendMessage = message => {
@@ -98,6 +113,9 @@ class VideoBox extends React.Component {
                 <Row>
                     <Col>
                         <video style={{ width: "100%" }} ref={this.videoTagLocal} autoPlay></video>
+                        <Form.Control onChange={this.change} name='username' type="text" placeholder="Your username" />
+                        <Button onClick={this.login} variant="outline-primary">Login</Button>
+                        <Form.Control onChange={this.change} name='other_username' type="text" placeholder="Connect to" />
                         <Button onClick={this.createConnection} variant="outline-primary">Connect</Button>
                         <Button variant="outline-primary">Disconnect</Button>
                     </Col>
