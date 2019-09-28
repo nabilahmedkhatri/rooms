@@ -9,6 +9,7 @@ const configuration = {
 }
 
 var connection = new RTCPeerConnection(configuration)
+var otherUserName = "self"
 
 class VideoBox extends React.Component {
     constructor(props) {
@@ -34,6 +35,8 @@ class VideoBox extends React.Component {
     }
 
     sendMessage = message => {
+        // message.otherUserName = otherUserName
+
         ws.send(JSON.stringify(message))
     }
 
@@ -55,6 +58,16 @@ class VideoBox extends React.Component {
                 case 'video-connect':
                     this.handleVideo(data.success)
                     break
+                case 'offer':
+                    this.handleOffer(data.offer, data.username)
+                    break
+                case 'answer':
+                    this.handleAnswer(data.answer)
+                    break
+                case 'candidate':
+                    this.handleCandidate(data.candidate)
+                    break
+
             }
         }
 
@@ -65,6 +78,7 @@ class VideoBox extends React.Component {
         console.log('The link was clicked.');
         this.sendMessage('connection')
 
+        this.sendMessage({ type: 'login' })
         // create an offer
         connection.createOffer(
             offer => {
@@ -83,7 +97,40 @@ class VideoBox extends React.Component {
 
     }
 
-    handleVideo = (stream) => {
+    handleOffer = (offer, username) => {
+        var otherUsername = username
+        console.log('handling offer ' + offer)
+        connection.setRemoteDescription(new RTCSessionDescription(offer))
+        console.log("this is the offer", offer)
+        connection.createAnswer(
+            answer => {
+                connection.setLocalDescription(answer)
+                this.sendMessage({
+                    type: 'answer',
+                    answer: answer
+                })
+            },
+            error => {
+                alert('Error when creating an answer')
+                console.error(error)
+            }
+        )
+    }
+
+    handleVideo = async (success) => {
+        if (!success) {
+            console.error("no good")
+        }
+        let stream
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            })
+        } catch (error) {
+            alert(`${error.name}`)
+            console.error(error)
+        }
         this.videoTagLocal.current.srcObject = stream;
 
         connection.addStream(stream)
@@ -101,6 +148,14 @@ class VideoBox extends React.Component {
             }
         }
 
+    }
+
+    handleAnswer = answer => {
+        connection.setRemoteDescription(new RTCSessionDescription(answer))
+    }
+
+    handleCandidate = candidate => {
+        connection.addIceCandidate(new RTCIceCandidate(candidate))
     }
 
     videoError = (err) => {
