@@ -20,7 +20,34 @@ app.listen(PORT, () => {
 });
 
 // websocket stuff
-const webSocketsServerPort = 8080; 
-const webSocketServer = require('websocket').server 
-const http = require('http')
+const WebSocket = require('ws')
 
+const wss = new WebSocket.Server({ port: 8080 })
+
+wss.on('connection', ws => {
+  console.log('User connected')
+
+  ws.on('message', message => {
+    console.log(`Received message => ${message}`)
+
+    let data = null
+    
+    try {
+        data = JSON.parse(message)
+    } catch (error) {
+        console.error('Invalid JSON', error)
+        data = {}
+    }
+    
+    switch (data.type) {
+        case 'login':
+        console.log('User logged', data.username)
+        break
+    }
+
+  })
+
+  ws.on('close', () => {
+    //handle closing
+  })
+})

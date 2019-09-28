@@ -5,7 +5,7 @@ const ws = new WebSocket('ws://localhost:8080')
 
 const configuration = {
     iceServers: [{ url: 'stun:stun2.1.google.com:19302' }]
-  }
+}
 
 var connection = new RTCPeerConnection(configuration)
 
@@ -15,24 +15,20 @@ class VideoBox extends React.Component {
         this.videoTagLocal = React.createRef()
         this.videoTagRemote = React.createRef()
         this.createConnection = this.createConnection.bind(this)
-    
+
     }
-    
+
     sendMessage = message => {
         ws.send(JSON.stringify(message))
     }
 
     componentDidMount() {
-        
-
-    
-
         ws.onopen = () => {
             console.log('Connected to the signaling server')
-          }
-          
+        }
+
         ws.onerror = err => {
-        console.error(err)
+            console.error(err)
         }
 
         ws.onmessage = msg => {
@@ -41,25 +37,23 @@ class VideoBox extends React.Component {
             const data = JSON.parse(msg.data)
 
             switch (data.type) {
-                case 'login':
+                case 'video-connect':
                     this.handleVideo(data.success)
                     break
             }
         }
 
-
-
     }
 
     createConnection = (e) => {
-            e.preventDefault();
-            console.log('The link was clicked.');
-            this.sendMessage('connection')
+        e.preventDefault();
+        console.log('The link was clicked.');
+        this.sendMessage('connection')
 
-            // create an offer
+        // create an offer
         connection.createOffer(
             offer => {
-                sendMessage({
+                this.sendMessage({
                     type: 'offer',
                     offer: offer
                 })
@@ -77,8 +71,6 @@ class VideoBox extends React.Component {
     handleVideo = (stream) => {
         this.videoTagLocal.current.srcObject = stream;
 
-    
-
         connection.addStream(stream)
 
         connection.onaddstream = event => {
@@ -90,7 +82,7 @@ class VideoBox extends React.Component {
                 this.sendMessage({
                     type: 'candidate',
                     candidate: event.candidate
-                    })
+                })
             }
         }
 
@@ -100,22 +92,17 @@ class VideoBox extends React.Component {
         alert(err)
     }
 
-   handleVideo = (stream) => {
-       this.videoTag.current.srcObject = stream
-   }
-
-
     render() {
         return (
             <Container>
                 <Row>
                     <Col>
-                        <video style={ {width: "100%"} } ref={this.videoTagLocal} autoPlay></video>
+                        <video style={{ width: "100%" }} ref={this.videoTagLocal} autoPlay></video>
                         <Button onClick={this.createConnection} variant="outline-primary">Connect</Button>
                         <Button variant="outline-primary">Disconnect</Button>
                     </Col>
                     <Col>
-                        <video style={ {width: "100%"} } ref={this.videoTagRemote} autoPlay></video>
+                        <video style={{ width: "100%" }} ref={this.videoTagRemote} autoPlay></video>
                         <Button variant="outline-primary">Connect</Button>
                         <Button variant="outline-primary">Disconnect</Button>
                     </Col>
