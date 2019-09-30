@@ -3,7 +3,7 @@ import { Col, Row, Container, Button } from 'react-bootstrap'
 // eslint-disable-next-line
 import { Form, FormControl } from 'react-bootstrap'
 
-const ws = new WebSocket('ws://192.168.1.237:8080')
+const ws = new WebSocket('ws://localhost:8080')
 
 // eslint-disable-next-line
 let connection = null
@@ -18,7 +18,7 @@ class VideoBox extends React.Component {
         this.createConnection = this.createConnection.bind(this)
         this.state = {
             username: "",
-            otherUsername: ""
+            otherUsername: "",
         }
 
     }
@@ -197,6 +197,11 @@ class VideoBox extends React.Component {
                     </Col>
                     <Col>
                         <video style={{ width: "100%" }} ref={this.videoTagRemote} autoPlay></video>
+                        <Button variant="outline-primary">Connect</Button>
+                        <Button variant="outline-primary">Disconnect</Button>
+                    </Col>
+                    <Col>
+                        <video style={{ width: "100%" }} ref={this.videoTagRemote2} autoPlay></video>
                         <Button variant="outline-primary">Connect</Button>
                         <Button variant="outline-primary">Disconnect</Button>
                     </Col>
