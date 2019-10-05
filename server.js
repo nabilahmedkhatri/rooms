@@ -25,17 +25,19 @@ const WebSocket = require('ws')
 const wss = new WebSocket.Server({ port: 8080 })
 
 const sendTo = (ws, message) => {
+  // console.log('ws', ws)
   ws.send(JSON.stringify(message))
 }
 
 users = {}
+room = []
 
 wss.on('connection', ws => {
   console.log('User connected')
   // console.log(ws)
 
   ws.on('message', message => {
-    console.log(`Received message => ${message}`)
+    // console.log(`Received message => ${message}`)
 
     let data = null
 
@@ -53,42 +55,48 @@ wss.on('connection', ws => {
           sendTo(ws, { type: 'login', success: false })
         } else {
           users[data.username] = ws
+          console.log('login u ', data.username )
           ws.username = data.username
           sendTo(ws, { type: 'login', success: true })
+          room.push(data.username)
         }
         break
 
       case 'offer':
-        console.log('Sending offer to: ', data.otherUsername)
         ws.otherUsername = data.otherUsername
-        if (users[data.otherUsername] != null) {
-          ws.otherUsername = data.otherUsername
-          sendTo(users[data.otherUsername], {
-            type: 'offer',
-            offer: data.offer,
-            username: ws.username
-          })
-        }
+        ws.room = room
+        Object.values(users).forEach( (user) => {
+          if (user.username != data.username)
+            console.log("sending an offer to ", user.username)
+            sendTo(user, {
+              type: 'offer',
+              offer: data.offer,
+              username: ws.username
+            })
+        })
         break
       case 'answer':
-        console.log('Sending answer to: ', data.otherUsername)
-        if (users[data.otherUsername] != null) {
-          ws.otherUsername = data.otherUsername
-          sendTo(users[data.otherUsername], {
+        Object.values(users).forEach(user =>{
+          if (user.username != data.username) {
+            console.log('Sending answer to: ', user.username)
+            console.log("in answer data username", data.username)
+            sendTo(user, {
             type: 'answer',
             answer: data.answer
-          })
-        }
+            })
+          }
+        })
         break
       case 'candidate':
-        console.log('Sending candidate to:', data.otherUsername)
-
-        if (users[data.otherUsername] != null) {
-          sendTo(users[data.otherUsername], {
+        Object.values(users).forEach(user =>{
+          if (user.username != data.username) {
+            console.log('Sending candidate to:', user.username)
+            sendTo(user, {
             type: 'candidate',
             candidate: data.candidate
-          })
-        }
+            })
+          }
+        })
         break
     }
 
