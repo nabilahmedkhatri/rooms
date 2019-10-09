@@ -18,9 +18,7 @@ class VideoBox extends React.Component {
         this.videoTagRemote2 = React.createRef()
         this.state = {
             username: "",
-            otherUsername: "",
-            connections: {},
-            connection_count: 0
+            otherUsername: ""
         }
 
     }
@@ -232,11 +230,6 @@ class VideoBox extends React.Component {
                     </Col>
                     <Col>
                         <video style={{ width: "100%" }} ref={this.videoTagRemote} autoPlay></video>
-                        <Button variant="outline-primary">Connect</Button>
-                        <Button variant="outline-primary">Disconnect</Button>
-                    </Col>
-                    <Col>
-                        <video style={{ width: "100%" }} ref={this.videoTagRemote2} autoPlay></video>
                         <Button variant="outline-primary">Connect</Button>
                         <Button variant="outline-primary">Disconnect</Button>
                     </Col>
