@@ -9,6 +9,10 @@ const ws = new WebSocket('ws://192.168.1.237:8080')
 let connection = null
 let username = null
 let otherUsername = null
+let usernameLocal = null
+let usernameRemote = null
+let stream = null
+
 
 class VideoBox extends React.Component {
     constructor(props) {
@@ -18,6 +22,8 @@ class VideoBox extends React.Component {
         this.videoTagRemote2 = React.createRef()
         this.state = {
             username: "",
+            usernameLocal: "",
+            usernameRemote: "",
             otherUsername: "",
             connections: {},
             connection_count: 0
@@ -28,6 +34,12 @@ class VideoBox extends React.Component {
     change = (e) => {
         this.setState({
             [e.target.name]: e.target.value
+        },
+        () =>{
+            this.setState({
+                usernameLocal: this.state.username+'local',
+                usernameRemote: this.state.username+'remote'
+            })
         })
     }
 
@@ -101,13 +113,23 @@ class VideoBox extends React.Component {
 
         var connections = {...this.state.connections}
 
-        connections[username].createOffer(
+        usernameLocal = this.state.usernameLocal
+        usernameRemote = this.state.usernameRemote
+
+        this.setState({
+            connection_count: this.state.connection_count + 1
+        })
+
+        console.log(connections)
+
+        connections[usernameLocal].createOffer(
             offer => {
                 this.sendMessage({
                     type: 'offer',
                     offer: offer
                 })
-                connections[username].setLocalDescription(offer)
+                connections[usernameLocal].setLocalDescription(offer)
+                connections[usernameRemote].setRemoteDescription(offer)
             },
             error => {
                 alert('Error when creating an offer')
@@ -115,19 +137,22 @@ class VideoBox extends React.Component {
             }
         )
 
-
+        this.setState({connections})
     }
 
-    handleOffer = (offer, username) => {
+    handleOffer = async (offer, username) => {
         
         username = this.state.username
 
-        var connections = {...this.state.connections}
-        connections[username].setRemoteDescription(new RTCSessionDescription(offer))
 
-        connections[username].createAnswer(
+        var connections = {...this.state.connections}
+
+        connections[usernameLocal].setRemoteDescription(new RTCSessionDescription(offer))
+
+        connections[usernameLocal].createAnswer(
             answer => {
-                connections[username].setLocalDescription(answer)
+                connections[usernameRemote].setLocalDescription(answer)
+                connections[usernameLocal].setRemoteDescription(answer)
                 this.sendMessage({
                     type: 'answer',
                     answer: answer
@@ -138,6 +163,8 @@ class VideoBox extends React.Component {
                 console.error(error)
             }
         )
+
+        this.setState({connections})
     }
 
 
@@ -159,35 +186,64 @@ class VideoBox extends React.Component {
         }
         this.videoTagLocal.current.srcObject = stream;
 
+
         const configuration = {
             iceServers: [{ url: 'stun:stun2.1.google.com:19302' }]
         }
 
         var connections = {...this.state.connections}
-        var username = this.state.username
+        usernameLocal = this.state.usernameLocal 
+        usernameRemote = this.state.usernameRemote
 
-        connections[username] = new RTCPeerConnection(configuration)
+        connections[usernameLocal] = new RTCPeerConnection(configuration)
+        connections[usernameRemote] = new RTCPeerConnection(configuration)
+
+        console.log(connections)
+
+
+        // stream.getTracks().forEach((track) => {
+        //     connections[username].addTrack(track, stream)
+        //     this.videoTagRemote.current.srcObject = event.stream;
+        // })
 
         
-        connections[username].peerNumber = this.state.connection_count
-
-        this.setState({
-            connection_count: this.state.connection_count += 1
-        })
+        connections[usernameLocal].peerNumber = 0
+        connections[usernameRemote].peerNumber = 0
 
 
-        connections[username].addStream(stream)
 
-        connections[username].onaddstream = event => {
-            if (this.state.connection_count == 0 || this.state.connection_count == 1) {
-                this.videoTagRemote.current.srcObject = event.stream;
-            }
-            else if (this.state.connection_count == 2) {
-                this.videoTagRemote2.current.srcObject = event.stream;
-            }
+        // connections[username].addStream(stream)
+
+        // connections[username].onaddstream = event => {
+        //     if (this.state.connection_count == 0 || this.state.connection_count == 1) {
+        //         this.videoTagRemote.current.srcObject = event.stream;
+        //     }
+        //     else if (this.state.connection_count == 2) {
+        //         this.videoTagRemote2.current.srcObject = event.stream;
+        //     }
+        // }
+
+        connections[usernameRemote].ontrack = event => {
+            // if (this.state.connection_count == 0 || this.state.connection_count == 1) {
+            //     this.videoTagRemote.current.srcObject = event.stream[0];
+            // }
+            // else if (this.state.connection_count == 2) {
+            //     this.videoTagRemote2.current.srcObject = event.stream[0];
+            // }
+            console.log(event.stream)
         }
 
-        connections[username].onicecandidate = event => {
+        // connections[username].onnegotiationneeded = async () => {
+        //     try {
+        //         await connections[username].setLocalDescription(await pc.createOffer());
+        //         // send the offer to the other peer
+        //         this.sendMessage({type: pc.localDescription});
+        //       } catch (err) {
+        //         console.error(err);
+        //       } 
+        // }
+
+        connections[usernameLocal].onicecandidate = event => {
             if (event.candidate) {
                 this.sendMessage({
                     type: 'candidate',
@@ -196,6 +252,20 @@ class VideoBox extends React.Component {
             }
         }
 
+        connections[usernameRemote].onicecandidate = event => {
+            if (event.candidate) {
+                this.sendMessage({
+                    type: 'candidate',
+                    candidate: event.candidate
+                })
+            }
+        }
+
+        stream.getTracks().forEach((track) => {
+            connections[usernameLocal].addTrack(track, stream)
+            // this.videoTagRemote.current.srcObject = event.stream;
+        })
+
         this.setState({connections})
 
     }
@@ -203,14 +273,22 @@ class VideoBox extends React.Component {
     handleAnswer = answer => {
         var connections = {...this.state.connections}
 
-        connections[username].setRemoteDescription(new RTCSessionDescription(answer))
+        usernameLocal = this.state.usernameLocal
+        usernameRemote = this.state.usernameRemote
+
+        connections[usernameRemote].setLocalDescription(new RTCSessionDescription(answer))
+        connections[usernameLocal].setRemoteDescription(new RTCSessionDescription(answer))
         this.setState({connections})
     }
 
     handleCandidate = candidate => {
         var connections = {...this.state.connections}
 
-        connections[username].addIceCandidate(new RTCIceCandidate(candidate))
+        usernameLocal = this.state.usernameLocal
+        usernameRemote = this.state.usernameRemote
+
+        connections[usernameLocal].addIceCandidate(new RTCIceCandidate(candidate))
+        connections[usernameRemote].addIceCandidate(new RTCIceCandidate(candidate))
         this.setState({connections})
     }
 
