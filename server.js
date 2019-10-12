@@ -51,11 +51,16 @@ wss.on('connection', ws => {
     switch (data.type) {
       case 'login':
         console.log('User logged', data.username)
-        if (!users["self"]) {
-          users["self"] = ws
-          ws.username = "self"
-          sendTo(ws, { type: 'video-connect', success: true })
+
+        if (!users[data.username]) {
+          users[data.username] = ws
+          ws.username = data.username
+          sendTo(ws, { type: 'login', username: data.username, success: true })
+        } else {
+          console.log("login failed, user exists")
+          sendTo(ws, { type: 'login', success: false })
         }
+        
         break
 
       case 'offer':

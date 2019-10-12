@@ -34,6 +34,7 @@ class VideoBox extends React.Component {
 
     login = () => {
         console.log(this.state.username)
+        this.sendMessage({ type: 'login', username: this.state.username })  
     }
 
     sendMessage = message => {
@@ -57,6 +58,9 @@ class VideoBox extends React.Component {
             const data = JSON.parse(msg.data)
 
             switch (data.type) {
+                case 'login':
+                    this.handeLogin(data.username, data.success)
+                    break
                 case 'video-connect':
                     this.handleVideo(data.success)
                     break
@@ -69,18 +73,22 @@ class VideoBox extends React.Component {
                 case 'candidate':
                     this.handleCandidate(data.candidate)
                     break
-
             }
         }
+    }
 
+    handeLogin = (success, loginUsername) => {
+        if (!success) {
+            console.log("login failed")
+        }
+
+        this.setState({
+            username: loginUsername
+        })
     }
 
     createConnection = (e) => {
         e.preventDefault();
-        console.log('The link was clicked.');
-
-        this.sendMessage({ type: 'login' })
-        // create an offer
 
         var connections = {...this.state.connections}
 
