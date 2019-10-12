@@ -51,52 +51,42 @@ wss.on('connection', ws => {
     switch (data.type) {
       case 'login':
         console.log('User logged', data.username)
-        if (users[data.username]) {
-          sendTo(ws, { type: 'login', success: false })
-        } else {
-          users[data.username] = ws
-          console.log('login u ', data.username )
-          ws.username = data.username
-          sendTo(ws, { type: 'login', success: true })
-          room.push(data.username)
+        if (!users["self"]) {
+          users["self"] = ws
+          ws.username = "self"
+          sendTo(ws, { type: 'video-connect', success: true })
         }
         break
 
       case 'offer':
+        console.log('Sending offer to: ', "self")
         ws.otherUsername = data.otherUsername
-        ws.room = room
-        Object.values(users).forEach( (user) => {
-          if (user.username != data.username)
-            console.log("sending an offer to ", user.username)
-            sendTo(user, {
-              type: 'offer',
-              offer: data.offer,
-              username: ws.username
-            })
+        sendTo(users["self"], {
+          type: 'offer',
+          offer: data.offer,
+          username: "self"
         })
         break
       case 'answer':
-        Object.values(users).forEach(user =>{
-          if (user.username != data.username) {
-            console.log('Sending answer to: ', user.username)
-            console.log("in answer data username", data.username)
-            sendTo(user, {
+        console.log('Sending answer to: ', data.otherUsername)
+        if (users["self"] != null) {
+          ws.otherUsername = "self"
+          sendTo(users['self'], {
             type: 'answer',
             answer: data.answer
             })
           }
-        })
         break
       case 'candidate':
-        Object.values(users).forEach(user =>{
-          if (user.username != data.username) {
-            console.log('Sending candidate to:', user.username)
-            sendTo(user, {
+        console.log('Sending candidate to: self')
+
+        if (users["self"] != null) {
+          sendTo(users["self"], {
             type: 'candidate',
             candidate: data.candidate
             })
           }
-        })
+      
         break
     }
 

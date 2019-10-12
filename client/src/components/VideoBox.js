@@ -1,14 +1,17 @@
 import React from 'react'
 import { Col, Row, Container, Button } from 'react-bootstrap'
-// eslint-disable-next-line
-import { Form, FormControl } from 'react-bootstrap'
+import {Form, FormControl } from 'react-bootstrap'
 
-const ws = new WebSocket('ws://192.168.1.237:8080')
+const ws = new WebSocket('ws://localhost:8080')
 
-// eslint-disable-next-line
-let connection = null
-let username = null
-let otherUsername = null
+const configuration = {
+    iceServers: [{ url: 'stun:stun2.1.google.com:19302' }]
+}
+
+var connection = new RTCPeerConnection(configuration)
+var otherUserName = "self"
+
+let username, connections
 
 class VideoBox extends React.Component {
     constructor(props) {
@@ -18,35 +21,23 @@ class VideoBox extends React.Component {
         this.videoTagRemote2 = React.createRef()
         this.state = {
             username: "",
-            otherUsername: ""
+            other_username: ""
         }
 
     }
 
     change = (e) => {
-        this.setState({
+        this.setState( {
             [e.target.name]: e.target.value
         })
     }
 
     login = () => {
         console.log(this.state.username)
-        username = this.state.username
-        this.sendMessage({
-            type: 'login',
-            username: this.state.username
-        })
-
     }
 
     sendMessage = message => {
-        if (otherUsername) {
-            message.otherUsername = otherUsername
-        }
-        console.log("in send message: ", username)
-        if (username) {
-            message.username = username
-        }
+        // message.otherUserName = otherUserName
 
         ws.send(JSON.stringify(message))
     }
@@ -62,13 +53,10 @@ class VideoBox extends React.Component {
 
         ws.onmessage = msg => {
             console.log('Got message', msg.data)
-            // eslint-disable-next-line
+
             const data = JSON.parse(msg.data)
 
             switch (data.type) {
-                case 'login':
-                    this.handleLogin(data.success)
-                    break
                 case 'video-connect':
                     this.handleVideo(data.success)
                     break
@@ -81,8 +69,6 @@ class VideoBox extends React.Component {
                 case 'candidate':
                     this.handleCandidate(data.candidate)
                     break
-                default:
-                    console.log("default switch")
 
             }
         }
@@ -93,8 +79,7 @@ class VideoBox extends React.Component {
         e.preventDefault();
         console.log('The link was clicked.');
 
-        otherUsername = this.state.otherUsername
-        username = this.state.username
+        this.sendMessage({ type: 'login' })
         // create an offer
 
         var connections = {...this.state.connections}
@@ -117,13 +102,11 @@ class VideoBox extends React.Component {
     }
 
     handleOffer = (offer, username) => {
-        
-        username = this.state.username
-
-        var connections = {...this.state.connections}
-        connections[username].setRemoteDescription(new RTCSessionDescription(offer))
-
-        connections[username].createAnswer(
+        var otherUsername = username
+        console.log('handling offer ' + offer)
+        connection.setRemoteDescription(new RTCSessionDescription(offer))
+        console.log("this is the offer", offer)
+        connection.createAnswer(
             answer => {
                 connections[username].setLocalDescription(answer)
                 this.sendMessage({
@@ -138,9 +121,7 @@ class VideoBox extends React.Component {
         )
     }
 
-
-
-    handleLogin = async (success) => {
+    handleVideo = async (success) => {
         if (!success) {
             console.error("no good")
         }
@@ -157,22 +138,7 @@ class VideoBox extends React.Component {
         }
         this.videoTagLocal.current.srcObject = stream;
 
-        const configuration = {
-            iceServers: [{ url: 'stun:stun2.1.google.com:19302' }]
-        }
-
-        var connections = {...this.state.connections}
-        var username = this.state.username
-
-        connections[username] = new RTCPeerConnection(configuration)
-
-        
-        connections[username].peerNumber = this.state.connection_count
-
-        this.setState({
-            connection_count: this.state.connection_count += 1
-        })
-
+        connection.addStream(stream)
 
         connections[username].addStream(stream)
 
@@ -221,10 +187,10 @@ class VideoBox extends React.Component {
             <Container>
                 <Row>
                     <Col>
-                        <video muted style={{ width: "100%" }} ref={this.videoTagLocal} autoPlay></video>
+                        <video style={{ width: "100%" }} ref={this.videoTagLocal} autoPlay></video>
                         <Form.Control onChange={this.change} name='username' type="text" placeholder="Your username" />
                         <Button onClick={this.login} variant="outline-primary">Login</Button>
-                        <Form.Control onChange={this.change} name='otherUsername' type="text" placeholder="Connect to" />
+                        <Form.Control onChange={this.change} name='other_username' type="text" placeholder="Connect to" />
                         <Button onClick={this.createConnection} variant="outline-primary">Connect</Button>
                         <Button variant="outline-primary">Disconnect</Button>
                     </Col>
