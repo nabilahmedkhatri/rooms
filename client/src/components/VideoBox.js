@@ -11,7 +11,7 @@ const configuration = {
 var connection = new RTCPeerConnection(configuration)
 var otherUserName = "self"
 
-let username, connections
+let username, connections, stream
 
 class VideoBox extends React.Component {
     constructor(props) {
@@ -21,7 +21,8 @@ class VideoBox extends React.Component {
         this.videoTagRemote2 = React.createRef()
         this.state = {
             username: "",
-            other_username: ""
+            other_username: "",
+            localRTC: null
         }
 
     }
@@ -61,6 +62,7 @@ class VideoBox extends React.Component {
                 case 'login':
                     this.handeLogin(data.username, data.success)
                     break
+                // case '
                 case 'video-connect':
                     this.handleVideo(data.success)
                     break
@@ -87,26 +89,54 @@ class VideoBox extends React.Component {
         })
     }
 
-    createConnection = (e) => {
+    initConnection = async (e) => {
         e.preventDefault();
 
-        var connections = {...this.state.connections}
+        let stream = null
 
-        connections[username].createOffer(
-            offer => {
-                this.sendMessage({
-                    type: 'offer',
-                    offer: offer
-                })
-                connections[username].setLocalDescription(offer)
-            },
-            error => {
-                alert('Error when creating an offer')
-                console.error(error)
-            }
-        )
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: false
+            })
+        } catch (error) {
+            console.log("error getting user media")
+            console.error(error)
+        }
 
 
+        this.videoTagLocal.current.srcObject = stream
+
+        let localRTCpeer = new RTCPeerConnection(configuration)
+
+        stream.getTracks().forEach((track)=>{
+            localRTCpeer.addTrack(track, stream)
+        })
+
+        this.setState({
+            localRTC: localRTCpeer
+        })
+    }
+
+    connectToAll = async () => {
+        let localRTCPeer = this.state.localRTC
+
+        let offer = null
+
+        try {
+            offer = await localRTCPeer.createOffer()
+        } catch (error) {
+            console.log("error creating offer")
+            console.error(error)
+        }
+
+        this.sendMessage({
+            type: "offer",
+            offer: offer,
+            username: this.state.username
+        })
+
+        localRTCPeer.setLocalDescription(offer)
     }
 
     handleOffer = (offer, username) => {
@@ -133,17 +163,7 @@ class VideoBox extends React.Component {
         if (!success) {
             console.error("no good")
         }
-        let stream
-        try {
-            stream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
-            })
-        } catch (error) {
-            alert(`${error.name}`)
-            console.log("error here")
-            console.error(error)
-        }
+       
         this.videoTagLocal.current.srcObject = stream;
 
         connection.addStream(stream)
@@ -199,8 +219,8 @@ class VideoBox extends React.Component {
                         <Form.Control onChange={this.change} name='username' type="text" placeholder="Your username" />
                         <Button onClick={this.login} variant="outline-primary">Login</Button>
                         <Form.Control onChange={this.change} name='other_username' type="text" placeholder="Connect to" />
-                        <Button onClick={this.createConnection} variant="outline-primary">Connect</Button>
-                        <Button variant="outline-primary">Disconnect</Button>
+                        <Button onClick={this.initConnection} variant="outline-primary">Init Connection</Button>
+                        <Button onClick={this.connectToAll} variant="outline-primary">Connect All</Button>
                     </Col>
                     <Col>
                         <video style={{ width: "100%" }} ref={this.videoTagRemote} autoPlay></video>

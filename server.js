@@ -60,16 +60,19 @@ wss.on('connection', ws => {
           console.log("login failed, user exists")
           sendTo(ws, { type: 'login', success: false })
         }
-        
+        console.log(users)
         break
 
       case 'offer':
-        console.log('Sending offer to: ', "self")
-        ws.otherUsername = data.otherUsername
-        sendTo(users["self"], {
-          type: 'offer',
-          offer: data.offer,
-          username: "self"
+        console.log('Sending offer to: ', "all other users")
+        Object.keys(users).forEach(user => {
+          if (user != data.username) {
+            sendTo(users[user], {
+              type:'offer',
+              offer: data.offer,
+              username: data.username
+            })
+          }
         })
         break
       case 'answer':
