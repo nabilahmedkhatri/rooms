@@ -79,7 +79,7 @@ class VideoBox extends React.Component {
         }
     }
 
-    handeLogin = (success, loginUsername) => {
+    handeLogin = (loginUsername, success) => {
         if (!success) {
             console.log("login failed")
         }
@@ -129,7 +129,8 @@ class VideoBox extends React.Component {
             console.log("error creating offer")
             console.error(error)
         }
-
+        
+        
         this.sendMessage({
             type: "offer",
             offer: offer,
@@ -137,26 +138,41 @@ class VideoBox extends React.Component {
         })
 
         localRTCPeer.setLocalDescription(offer)
+
+        this.setState({
+            localRTC: localRTCPeer
+        })
     }
 
-    handleOffer = (offer, username) => {
-        var otherUsername = username
+    handleOffer = async (offer, username) => {
         console.log('handling offer ' + offer)
-        connection.setRemoteDescription(new RTCSessionDescription(offer))
-        console.log("this is the offer", offer)
-        connection.createAnswer(
-            answer => {
-                connections[username].setLocalDescription(answer)
-                this.sendMessage({
-                    type: 'answer',
-                    answer: answer
-                })
-            },
-            error => {
-                alert('Error when creating an answer')
-                console.error(error)
-            }
-        )
+
+        let newRTCpeer = this.state.localRTC
+
+        newRTCpeer.setRemoteDescription(offer)
+
+        let answer = null
+
+        try {
+            answer = await newRTCpeer.createAnswer()
+        } catch (error) {
+            console.log("error creating answer")
+            console.error(error)
+        }
+
+        console.log('answer is', answer)
+        newRTCpeer.setLocalDescription(answer)
+
+        this.setState({
+            localRTC: newRTCpeer
+        })
+
+
+        this.sendMessage({
+            type: 'answer',
+            answer: answer,
+            username: this.state.username
+        })
     }
 
     handleVideo = async (success) => {
@@ -193,17 +209,23 @@ class VideoBox extends React.Component {
     }
 
     handleAnswer = answer => {
-        var connections = {...this.state.connections}
+        let localRTCPeer = this.state.localRTC
 
-        connections[username].setRemoteDescription(new RTCSessionDescription(answer))
-        this.setState({connections})
+        localRTCPeer.setRemoteDescription(new RTCSessionDescription(answer))
+
+        this.setState({
+            localRTC: localRTCPeer
+        })
     }
 
     handleCandidate = candidate => {
-        var connections = {...this.state.connections}
+        let localRTCPeer = this.state.localRTC
 
-        connections[username].addIceCandidate(new RTCIceCandidate(candidate))
-        this.setState({connections})
+        localRTCPeer.addIceCandidate(new RTCIceCandidate(candidate))
+
+        this.setState({
+            localRTC: localRTCPeer
+        })
     }
 
     videoError = (err) => {
