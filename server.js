@@ -60,7 +60,7 @@ wss.on('connection', ws => {
         break
       case 'offer':
         console.log('Sending offer to: ', "all other users")
-        console.log("got answer from ", data.username)
+
         Object.keys(users).forEach(user => {
           if (user != data.username) {
             sendTo(users[user], {
