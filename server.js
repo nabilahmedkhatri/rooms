@@ -9,10 +9,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.get('/', (req, res) => {
-  console.log("Request received")
-  res.send({
-    text: "Rooms"
-  });
+
 });
 
 app.listen(PORT, () => {

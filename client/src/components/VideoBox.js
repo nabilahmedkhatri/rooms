@@ -1,16 +1,12 @@
 import React from 'react'
 import { Col, Row, Container, Button } from 'react-bootstrap'
-import {Form, FormControl } from 'react-bootstrap'
+import { Form } from 'react-bootstrap'
 
 const ws = new WebSocket('ws://localhost:8080')
 
 const configuration = {
     iceServers: [{ url: 'stun:stun2.1.google.com:19302' }]
 }
-
-var connection = new RTCPeerConnection(configuration)
-
-let username, connections, stream
 
 class VideoBox extends React.Component {
     constructor(props) {
@@ -66,6 +62,8 @@ class VideoBox extends React.Component {
                     break
                 case 'candidate':
                     this.handleCandidate(data.candidate)
+                    break
+                default:
                     break
             }
         }
