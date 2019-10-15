@@ -9,7 +9,6 @@ const configuration = {
 }
 
 var connection = new RTCPeerConnection(configuration)
-var otherUserName = "self"
 
 let username, connections, stream
 
@@ -34,13 +33,10 @@ class VideoBox extends React.Component {
     }
 
     login = () => {
-        console.log(this.state.username)
-        this.sendMessage({ type: 'login', username: this.state.username })  
+        this.sendMessage({ type: 'login', username: this.state.username })
     }
 
     sendMessage = message => {
-        // message.otherUserName = otherUserName
-
         ws.send(JSON.stringify(message))
     }
 
@@ -61,10 +57,6 @@ class VideoBox extends React.Component {
             switch (data.type) {
                 case 'login':
                     this.handeLogin(data.username, data.success)
-                    break
-                // case '
-                case 'video-connect':
-                    this.handleVideo(data.success)
                     break
                 case 'offer':
                     this.handleOffer(data.offer, data.username)
@@ -113,6 +105,20 @@ class VideoBox extends React.Component {
             localRTCpeer.addTrack(track, stream)
         })
 
+        localRTCpeer.ontrack = (event) => {
+            this.videoTagRemote.current.srcObject = event.streams[0]
+        }
+
+        localRTCpeer.onicecandidate = (event) => {
+            if (event.candidate) {
+                this.sendMessage({
+                    type: 'candidate',
+                    candidate: event.candidate,
+                    username: this.state.username
+                })
+            }
+        }
+
         this.setState({
             localRTC: localRTCpeer
         })
@@ -122,14 +128,12 @@ class VideoBox extends React.Component {
         let localRTCPeer = this.state.localRTC
 
         let offer = null
-
         try {
             offer = await localRTCPeer.createOffer()
         } catch (error) {
             console.log("error creating offer")
             console.error(error)
         }
-        
         
         this.sendMessage({
             type: "offer",
@@ -145,14 +149,11 @@ class VideoBox extends React.Component {
     }
 
     handleOffer = async (offer, username) => {
-        console.log('handling offer ' + offer)
-
         let newRTCpeer = this.state.localRTC
 
         newRTCpeer.setRemoteDescription(offer)
 
         let answer = null
-
         try {
             answer = await newRTCpeer.createAnswer()
         } catch (error) {
@@ -160,52 +161,17 @@ class VideoBox extends React.Component {
             console.error(error)
         }
 
-        console.log('answer is', answer)
         newRTCpeer.setLocalDescription(answer)
 
         this.setState({
             localRTC: newRTCpeer
         })
 
-
         this.sendMessage({
             type: 'answer',
             answer: answer,
             username: this.state.username
         })
-    }
-
-    handleVideo = async (success) => {
-        if (!success) {
-            console.error("no good")
-        }
-       
-        this.videoTagLocal.current.srcObject = stream;
-
-        connection.addStream(stream)
-
-        connections[username].addStream(stream)
-
-        connections[username].onaddstream = event => {
-            if (this.state.connection_count == 0 || this.state.connection_count == 1) {
-                this.videoTagRemote.current.srcObject = event.stream;
-            }
-            else if (this.state.connection_count == 2) {
-                this.videoTagRemote2.current.srcObject = event.stream;
-            }
-        }
-
-        connections[username].onicecandidate = event => {
-            if (event.candidate) {
-                this.sendMessage({
-                    type: 'candidate',
-                    candidate: event.candidate
-                })
-            }
-        }
-
-        this.setState({connections})
-
     }
 
     handleAnswer = answer => {

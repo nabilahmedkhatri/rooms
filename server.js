@@ -25,7 +25,6 @@ const WebSocket = require('ws')
 const wss = new WebSocket.Server({ port: 8080 })
 
 const sendTo = (ws, message) => {
-  // console.log('ws', ws)
   ws.send(JSON.stringify(message))
 }
 
@@ -34,10 +33,8 @@ room = []
 
 wss.on('connection', ws => {
   console.log('User connected')
-  // console.log(ws)
 
   ws.on('message', message => {
-    // console.log(`Received message => ${message}`)
 
     let data = null
 
@@ -61,7 +58,6 @@ wss.on('connection', ws => {
           sendTo(ws, { type: 'login', success: false })
         }
         break
-
       case 'offer':
         console.log('Sending offer to: ', "all other users")
         console.log("got answer from ", data.username)
@@ -88,15 +84,16 @@ wss.on('connection', ws => {
         })
         break
       case 'candidate':
-        console.log('Sending candidate to: self')
-
-        if (users["self"] != null) {
-          sendTo(users["self"], {
-            type: 'candidate',
-            candidate: data.candidate
+        console.log('Sending candidate to: all other users')
+        Object.keys(users).forEach(user => {
+          if (user != data.username) {
+            sendTo(users[user], {
+              type: 'candidate',
+              candidate: data.candidate,
+              username: data.username
             })
           }
-      
+        })
         break
     }
 
