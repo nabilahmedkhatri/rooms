@@ -1,6 +1,8 @@
 import React from 'react'
 import { Col, Row, Container, Button } from 'react-bootstrap'
 import { Form } from 'react-bootstrap'
+import Stream from './Stream'
+import shortid  from 'shortid'
 
 const ws = new WebSocket('ws://localhost:8080')
 
@@ -19,12 +21,14 @@ class VideoBox extends React.Component {
             other_username: "",
             localRTC: null,
             newRTC: null,
-            stream: null
+            stream: null,
+            peers: {},
+            streams: []
         }
 
     }
 
-    setUpRTCpeer = (RTCpeer) => {
+    setUpRTCpeer = (RTCpeer, username) => {
         let stream = this.state.stream
 
         stream.getTracks().forEach((track)=>{
@@ -32,7 +36,10 @@ class VideoBox extends React.Component {
         })
 
         RTCpeer.ontrack = (event) => {
-            this.videoTagRemote.current.srcObject = event.streams[0]
+            // this.videoTagRemote.current.srcObject = event.streams[0]
+            this.setState({ streams: [...this.state.streams, {
+                'media': event.streams[0],
+                'id':  shortid.generate()}]})
         }
 
         RTCpeer.onicecandidate = (event) => {
@@ -162,11 +169,9 @@ class VideoBox extends React.Component {
 
         let newRTCpeer = new RTCPeerConnection(configuration)
 
-        this.setUpRTCpeer(newRTCpeer)
+        this.setUpRTCpeer(newRTCpeer, username)
 
         newRTCpeer.setRemoteDescription(offer)
-
-        console.log(newRTCpeer)
 
         let answer = null
         try {
@@ -214,6 +219,7 @@ class VideoBox extends React.Component {
     }
 
     render() {
+        let streams = this.state.streams
         return (
             <Container>
                 <Row>
@@ -225,11 +231,15 @@ class VideoBox extends React.Component {
                         <Button onClick={this.initConnection} variant="outline-primary">Init Connection</Button>
                         <Button onClick={this.connectToAll} variant="outline-primary">Connect All</Button>
                     </Col>
-                    <Col>
-                        <video style={{ width: "100%" }} ref={this.videoTagRemote} autoPlay></video>
-                        <Button variant="outline-primary">Connect</Button>
-                        <Button variant="outline-primary">Disconnect</Button>
-                    </Col>
+                        { 
+                            streams.map(stream => (
+                                <Col key={stream.id}>
+                                    <Stream srcObject={stream.media}/>
+                                    <Button variant="outline-primary">Connect</Button>
+                                    <Button variant="outline-primary">Disconnect</Button>
+                                </Col>
+                            ))
+                        }
                 </Row>
 
             </Container>
