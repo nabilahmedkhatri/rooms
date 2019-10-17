@@ -17,7 +17,32 @@ class VideoBox extends React.Component {
         this.state = {
             username: "",
             other_username: "",
-            localRTC: null
+            localRTC: null,
+            newRTC: null,
+            stream: null
+        }
+
+    }
+
+    setUpRTCpeer = (RTCpeer) => {
+        let stream = this.state.stream
+
+        stream.getTracks().forEach((track)=>{
+            RTCpeer.addTrack(track, stream)
+        })
+
+        RTCpeer.ontrack = (event) => {
+            this.videoTagRemote.current.srcObject = event.streams[0]
+        }
+
+        RTCpeer.onicecandidate = (event) => {
+            if (event.candidate) {
+                this.sendMessage({
+                    type: 'candidate',
+                    candidate: event.candidate,
+                    username: this.state.username
+                })
+            }
         }
 
     }
@@ -83,7 +108,6 @@ class VideoBox extends React.Component {
         e.preventDefault();
 
         let stream = null
-
         try {
             stream = await navigator.mediaDevices.getUserMedia({
                 video: true,
@@ -94,28 +118,15 @@ class VideoBox extends React.Component {
             console.error(error)
         }
 
-
         this.videoTagLocal.current.srcObject = stream
+
+        this.setState({
+            stream: stream
+        })
 
         let localRTCpeer = new RTCPeerConnection(configuration)
 
-        stream.getTracks().forEach((track)=>{
-            localRTCpeer.addTrack(track, stream)
-        })
-
-        localRTCpeer.ontrack = (event) => {
-            this.videoTagRemote.current.srcObject = event.streams[0]
-        }
-
-        localRTCpeer.onicecandidate = (event) => {
-            if (event.candidate) {
-                this.sendMessage({
-                    type: 'candidate',
-                    candidate: event.candidate,
-                    username: this.state.username
-                })
-            }
-        }
+        this.setUpRTCpeer(localRTCpeer)
 
         this.setState({
             localRTC: localRTCpeer
@@ -147,9 +158,15 @@ class VideoBox extends React.Component {
     }
 
     handleOffer = async (offer, username) => {
-        let newRTCpeer = this.state.localRTC
+        // this.state.localRTC.close()
+
+        let newRTCpeer = new RTCPeerConnection(configuration)
+
+        this.setUpRTCpeer(newRTCpeer)
 
         newRTCpeer.setRemoteDescription(offer)
+
+        console.log(newRTCpeer)
 
         let answer = null
         try {
@@ -162,7 +179,7 @@ class VideoBox extends React.Component {
         newRTCpeer.setLocalDescription(answer)
 
         this.setState({
-            localRTC: newRTCpeer
+            newRTC: newRTCpeer
         })
 
         this.sendMessage({
@@ -173,22 +190,22 @@ class VideoBox extends React.Component {
     }
 
     handleAnswer = answer => {
-        let localRTCPeer = this.state.localRTC
+        let newRTCPeer = this.state.localRTC
 
-        localRTCPeer.setRemoteDescription(new RTCSessionDescription(answer))
+        newRTCPeer.setRemoteDescription(new RTCSessionDescription(answer))
 
         this.setState({
-            localRTC: localRTCPeer
+            newRTC: newRTCPeer
         })
     }
 
     handleCandidate = candidate => {
-        let localRTCPeer = this.state.localRTC
+        let newRTCPeer = this.state.localRTC
 
-        localRTCPeer.addIceCandidate(new RTCIceCandidate(candidate))
+        newRTCPeer.addIceCandidate(new RTCIceCandidate(candidate))
 
         this.setState({
-            localRTC: localRTCPeer
+            newRTC: newRTCPeer
         })
     }
 
