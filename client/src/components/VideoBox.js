@@ -145,9 +145,8 @@ class VideoBox extends React.Component {
 
     connectToAll = async () => {      
         let peers = {...this.state.peers}  
-        console.log(this.state.otherUsers)
+
         this.state.otherUsers.forEach( async otherUser => {
-            
             let newRTCpeer = new RTCPeerConnection(configuration)
 
             this.setUpRTCPeerMedia(newRTCpeer)
@@ -178,9 +177,6 @@ class VideoBox extends React.Component {
     }
 
     handleOffer = async (offer, incomingUsername) => {
-        // u: x
-        // incoming: z
-        console.log("ho",this.state.username,incomingUsername)
         let newRTCpeer = new RTCPeerConnection(configuration)
 
         this.setUpRTCPeerMedia(newRTCpeer)
@@ -209,13 +205,12 @@ class VideoBox extends React.Component {
         this.sendMessage({
             type: 'answer',
             answer: answer,
-            username: this.state.username, // x
-            answerToUsername: incomingUsername // z
+            username: this.state.username,
+            answerToUsername: incomingUsername
         })
     }
 
     handleAnswer = (answer, incomingUsername) => {
-        console.log("ha", incomingUsername)
         let peers = {...this.state.peers}
         let rtcPeer = peers[incomingUsername]
 
