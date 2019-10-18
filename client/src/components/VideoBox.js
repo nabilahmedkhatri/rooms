@@ -18,7 +18,7 @@ class VideoBox extends React.Component {
         this.videoTagRemote2 = React.createRef()
         this.state = {
             username: "",
-            other_username: "",
+            otherUsers: [],
             localRTC: null,
             newRTC: null,
             stream: null,
@@ -28,7 +28,7 @@ class VideoBox extends React.Component {
 
     }
 
-    setUpRTCpeer = (RTCpeer, username) => {
+    setUpRTCPeerMedia = (RTCpeer) => {
         let stream = this.state.stream
 
         stream.getTracks().forEach((track)=>{
@@ -36,22 +36,23 @@ class VideoBox extends React.Component {
         })
 
         RTCpeer.ontrack = (event) => {
-            // this.videoTagRemote.current.srcObject = event.streams[0]
             this.setState({ streams: [...this.state.streams, {
                 'media': event.streams[0],
                 'id':  shortid.generate()}]})
         }
+    }
 
+    setUpRTCIceHandler = (RTCpeer, username) => {
         RTCpeer.onicecandidate = (event) => {
             if (event.candidate) {
                 this.sendMessage({
                     type: 'candidate',
                     candidate: event.candidate,
-                    username: this.state.username
+                    username: this.state.username,
+                    iceToUsername: username
                 })
             }
         }
-
     }
 
     change = (e) => {
@@ -86,14 +87,17 @@ class VideoBox extends React.Component {
                 case 'login':
                     this.handeLogin(data.username, data.success)
                     break
+                case 'new-user':
+                    this.handleNewUser(data.users)
+                    break
                 case 'offer':
                     this.handleOffer(data.offer, data.username)
                     break
                 case 'answer':
-                    this.handleAnswer(data.answer)
+                    this.handleAnswer(data.answer, data.username)
                     break
                 case 'candidate':
-                    this.handleCandidate(data.candidate)
+                    this.handleCandidate(data.candidate, data.username)
                     break
                 default:
                     break
@@ -108,6 +112,13 @@ class VideoBox extends React.Component {
 
         this.setState({
             username: loginUsername
+        })
+    }
+
+    handleNewUser = (users) => {
+        users = users.filter(user => user !== this.state.username)
+        this.setState({
+            otherUsers: users
         })
     }
 
@@ -130,46 +141,50 @@ class VideoBox extends React.Component {
         this.setState({
             stream: stream
         })
+    }
 
-        let localRTCpeer = new RTCPeerConnection(configuration)
+    connectToAll = async () => {      
+        let peers = {...this.state.peers}  
+        console.log(this.state.otherUsers)
+        this.state.otherUsers.forEach( async otherUser => {
+            
+            let newRTCpeer = new RTCPeerConnection(configuration)
 
-        this.setUpRTCpeer(localRTCpeer)
+            this.setUpRTCPeerMedia(newRTCpeer)
+            this.setUpRTCIceHandler(newRTCpeer, otherUser)
 
-        this.setState({
-            localRTC: localRTCpeer
+            let offer = null
+            try {
+                offer = await newRTCpeer.createOffer()
+            } catch (error) {
+                console.log("error creating offer")
+                console.error(error)
+            }
+
+            newRTCpeer.setLocalDescription(offer)
+
+            this.sendMessage({
+                type: "offer",
+                offer: offer,
+                username: this.state.username,
+                offerToUsername: otherUser
+            })
+
+            peers[otherUser] = newRTCpeer
+            this.setState({
+                peers: peers
+            })
         })
     }
 
-    connectToAll = async () => {
-        let localRTCPeer = this.state.localRTC
-
-        let offer = null
-        try {
-            offer = await localRTCPeer.createOffer()
-        } catch (error) {
-            console.log("error creating offer")
-            console.error(error)
-        }
-        
-        this.sendMessage({
-            type: "offer",
-            offer: offer,
-            username: this.state.username
-        })
-
-        localRTCPeer.setLocalDescription(offer)
-
-        this.setState({
-            localRTC: localRTCPeer
-        })
-    }
-
-    handleOffer = async (offer, username) => {
-        // this.state.localRTC.close()
-
+    handleOffer = async (offer, incomingUsername) => {
+        // u: x
+        // incoming: z
+        console.log("ho",this.state.username,incomingUsername)
         let newRTCpeer = new RTCPeerConnection(configuration)
 
-        this.setUpRTCpeer(newRTCpeer, username)
+        this.setUpRTCPeerMedia(newRTCpeer)
+        this.setUpRTCIceHandler(newRTCpeer, incomingUsername)
 
         newRTCpeer.setRemoteDescription(offer)
 
@@ -183,35 +198,35 @@ class VideoBox extends React.Component {
 
         newRTCpeer.setLocalDescription(answer)
 
+        let peers = {...this.state.peers}
+
+        peers[incomingUsername] = newRTCpeer
+
         this.setState({
-            newRTC: newRTCpeer
+            peers: peers
         })
 
         this.sendMessage({
             type: 'answer',
             answer: answer,
-            username: this.state.username
+            username: this.state.username, // x
+            answerToUsername: incomingUsername // z
         })
     }
 
-    handleAnswer = answer => {
-        let newRTCPeer = this.state.localRTC
+    handleAnswer = (answer, incomingUsername) => {
+        console.log("ha", incomingUsername)
+        let peers = {...this.state.peers}
+        let rtcPeer = peers[incomingUsername]
 
-        newRTCPeer.setRemoteDescription(new RTCSessionDescription(answer))
-
-        this.setState({
-            newRTC: newRTCPeer
-        })
+        rtcPeer.setRemoteDescription(new RTCSessionDescription(answer))
     }
 
-    handleCandidate = candidate => {
-        let newRTCPeer = this.state.localRTC
+    handleCandidate = (candidate, incomingUsername) => {
+        let peers = {...this.state.peers}
+        let rtcPeer = peers[incomingUsername]
 
-        newRTCPeer.addIceCandidate(new RTCIceCandidate(candidate))
-
-        this.setState({
-            newRTC: newRTCPeer
-        })
+        rtcPeer.addIceCandidate(new RTCIceCandidate(candidate))
     }
 
     videoError = (err) => {
