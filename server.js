@@ -21,8 +21,16 @@ const WebSocket = require('ws')
 
 const wss = new WebSocket.Server({ port: 8080 })
 
-const sendTo = (ws, message) => {
-  ws.send(JSON.stringify(message))
+const sendTo = (ws, message, username) => {
+  if (username){
+    Object.keys(users).forEach(user => {
+      if (user != username) {
+        users[user].send(JSON.stringify(message))
+      }
+    })
+  } else {
+    ws.send(JSON.stringify(message))
+  }
 }
 
 users = {}
@@ -50,6 +58,7 @@ wss.on('connection', ws => {
           users[data.username] = ws
           ws.username = data.username
           sendTo(ws, { type: 'login', username: data.username, success: true })
+          sendTo(null, { type: 'new-user', users: Object.keys(users) }, '-')
         } else {
           console.log("login failed, user exists")
           sendTo(ws, { type: 'login', success: false })
@@ -57,39 +66,26 @@ wss.on('connection', ws => {
         break
       case 'offer':
         console.log('Sending offer to: ', "all other users")
-
-        Object.keys(users).forEach(user => {
-          if (user != data.username) {
-            sendTo(users[user], {
-              type: 'offer',
-              offer: data.offer,
-              username: data.username
-            })
-          }
+        sendTo(users[data.offerToUsername], {
+          type: 'offer',
+          offer: data.offer,
+          username: data.username
         })
         break
       case 'answer':
         console.log('Sending answer to: ', 'all other users')
-        Object.keys(users).forEach(user => {
-          if (user != data.username) {
-            sendTo(users[user], {
-              type: 'answer',
-              answer: data.answer,
-              username: data.username
-            })
-          }
+        sendTo(users[data.answerToUsername], {
+          type: 'answer',
+          answer: data.answer,
+          username: data.username
         })
         break
       case 'candidate':
         console.log('Sending candidate to: all other users')
-        Object.keys(users).forEach(user => {
-          if (user != data.username) {
-            sendTo(users[user], {
-              type: 'candidate',
-              candidate: data.candidate,
-              username: data.username
-            })
-          }
+        sendTo(users[data.iceToUsername], {
+          type: 'candidate',
+          candidate: data.candidate,
+          username: data.username
         })
         break
     }
