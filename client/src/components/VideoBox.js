@@ -9,7 +9,20 @@ const ws = new WebSocket('ws://localhost:8080')
 const Port = "http://localhost:4000"
 
 const configuration = {
-    iceServers: [{ url: 'stun:stun2.1.google.com:19302' }]
+    iceServers: [{
+        urls: [ "stun:u3.xirsys.com" ]
+     }, {
+        username: "i5TYHtlO_stys9vzKotBJUBndcqXQX8739HtgkBip-7RVuviaCnCqINvB0By0S_xAAAAAF2yOEVjb3VudG9sYWY=",
+        credential: "c296a84a-f6b8-11e9-9ec7-86b7e87eee77",
+        urls: [
+            "turn:u3.xirsys.com:80?transport=udp",
+            "turn:u3.xirsys.com:3478?transport=udp",
+            "turn:u3.xirsys.com:80?transport=tcp",
+            "turn:u3.xirsys.com:3478?transport=tcp",
+            "turns:u3.xirsys.com:443?transport=tcp",
+            "turns:u3.xirsys.com:5349?transport=tcp"
+        ]
+     }]
 }
 
 class VideoBox extends React.Component {
@@ -25,6 +38,7 @@ class VideoBox extends React.Component {
             localOffer: null,
             newRTC: null,
             stream: null,
+            iceCandidates: [],
             peers: {},
             streams: []
         }
@@ -47,11 +61,17 @@ class VideoBox extends React.Component {
 
     setUpRTCIceHandler = (RTCpeer, username) => {
         RTCpeer.onicecandidate = (event) => {
+            if (event.candidate) {
+                this.setState({
+                    iceCandidates: [...this.state.iceCandidates, event.candidate]
+                })
+            }
             if (event.candidate === null) {
                 this.sendMessage({
                     type: 'offer',
                     offer: this.state.localOffer,
                     username: this.state.username,
+                    candidates: this.state.iceCandidates
                 })
             }
         }
@@ -99,10 +119,10 @@ class VideoBox extends React.Component {
                     this.handleOffer(data.offer, data.username)
                     break
                 case 'answer':
-                    this.handleAnswer(data.answer, data.username)
+                    this.handleAnswer(data.answer, data.candidates, data.username)
                     break
                 case 'candidate':
-                    this.handleCandidate(data.candidate, data.username)
+                    this.handleCandidate(data.candidates, data.username)
                     break
                 default:
                     break
@@ -213,20 +233,26 @@ class VideoBox extends React.Component {
         })
     }
 
-    handleAnswer = (answer, incomingUsername) => {
+    handleAnswer = (answer, candidates, incomingUsername) => {
         // let peers = {...this.state.peers}
         // let rtcPeer = peers[incomingUsername]
 
         let rtcPeer = this.state.localRTC
 
         rtcPeer.setRemoteDescription(new RTCSessionDescription(answer))
+
+        candidates.forEach((candidate) => {
+            rtcPeer.addIceCandidate(new RTCIceCandidate(candidate))
+        })
     }
 
-    handleCandidate = (candidate, incomingUsername) => {
-        let peers = {...this.state.peers}
-        let rtcPeer = peers[incomingUsername]
-
-        rtcPeer.addIceCandidate(new RTCIceCandidate(candidate))
+    handleCandidate = (candidates, incomigUsername) => {
+        // let peers = {...this.state.peers}
+        // let rtcPeer = peers[incomingUsername]
+        let rtcPeer = this.state.localRTC
+        candidates.forEach((candidate) => {
+            rtcPeer.addIceCandidate(new RTCIceCandidate(candidate))
+        })
     }
 
     videoError = (err) => {

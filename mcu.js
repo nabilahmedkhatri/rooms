@@ -3,7 +3,7 @@ const app = express();
 const PORT = 4000;
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const {RTCPeerConnection} = require('wrtc')
+const {RTCPeerConnection, RTCIceCandidate, getUserMedia} = require('wrtc')
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -19,21 +19,46 @@ app.listen(PORT, () => {
 });
 
 const configuration = {
-    iceServers: [{ url: 'stun:stun2.1.google.com:19302' }]
+  iceServers: [{
+      urls: [ "stun:u3.xirsys.com" ]
+   }, {
+      username: "i5TYHtlO_stys9vzKotBJUBndcqXQX8739HtgkBip-7RVuviaCnCqINvB0By0S_xAAAAAF2yOEVjb3VudG9sYWY=",
+      credential: "c296a84a-f6b8-11e9-9ec7-86b7e87eee77",
+      urls: [
+          "turn:u3.xirsys.com:80?transport=udp",
+          "turn:u3.xirsys.com:3478?transport=udp",
+          "turn:u3.xirsys.com:80?transport=tcp",
+          "turn:u3.xirsys.com:3478?transport=tcp",
+          "turns:u3.xirsys.com:443?transport=tcp",
+          "turns:u3.xirsys.com:5349?transport=tcp"
+      ]
+   }]
 }
+
+let iceCandidates = []
 
 setUpRTCIceHandler = (RTCpeer, username, answer) => {
   RTCpeer.onicecandidate = (event) => {
     console.log("gathering ice")
-      if (event.candidate === null) {
-          console.log("gathering complete")
-          sendTo(users[username], {
-            type: 'answer',
-            answer: answer,
-            username: 'server'
-          })
-      }
+    if (event.candidate) {
+      iceCandidates.push(event.candidate)
+    }
+    if (event.candidate === null) {
+        console.log("gathering complete")
+        sendTo(users[username], {
+          type: 'answer',
+          answer: answer,
+          candidates: iceCandidates,
+          username: 'server'
+        })
+    }
   }
+}
+
+addIceCandidates = (RTCpeer, candidates) => {
+  candidates.forEach(candidate => {
+    RTCpeer.addIceCandidate(new RTCIceCandidate(candidate))
+  })
 }
 
 const WebSocket = require('ws')
@@ -52,7 +77,16 @@ const sendTo = (ws, message, username) => {
 
 const wss = new WebSocket.Server({ port: 8080 })
 
-let serverRTCpeer = null
+let serverRTCpeer = new RTCPeerConnection(configuration)    
+
+localStream = null
+
+getUserMedia({audio: true,video: true})
+.then( stream => {
+  stream.getTracks().forEach((track)=>{
+    serverRTCpeer.addTrack(track, stream)
+  })
+})
 
 let broadcast = {
   set(obj, prop, stream) {
@@ -99,9 +133,9 @@ wss.on('connection', ws => {
         break
       case 'offer':
         console.log('recieved offer', data.offer)
-        serverRTCpeer = new RTCPeerConnection()        
-
+    
         serverRTCpeer.setRemoteDescription(data.offer)
+        addIceCandidates(serverRTCpeer, data.candidates)
 
         serverRTCpeer.ontrack = (event) => {
           stream_proxy.push(event.streams[0])
