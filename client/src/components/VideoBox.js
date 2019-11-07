@@ -6,6 +6,7 @@ import Stream from './Stream'
 import shortid  from 'shortid'
 
 const ws = new WebSocket('ws://localhost:8080')
+// ws.binaryType = "arraybuffer"
 const Port = "http://localhost:4000"
 
 const configuration = {
@@ -53,6 +54,7 @@ class VideoBox extends React.Component {
         })
 
         RTCpeer.ontrack = (event) => {
+            console.log('recieved track', event.streams[0])
             this.setState({ streams: [...this.state.streams, {
                 'media': event.streams[0],
                 'id':  shortid.generate()}]})
@@ -67,6 +69,7 @@ class VideoBox extends React.Component {
                 })
             }
             if (event.candidate === null) {
+                console.log('gathering')
                 this.sendMessage({
                     type: 'offer',
                     offer: this.state.localOffer,
@@ -87,6 +90,13 @@ class VideoBox extends React.Component {
         this.sendMessage({ type: 'login', username: this.state.username })
     }
 
+    getStreams = () => {
+        axios.get('http://localhost:4000')
+        .then(res =>{
+            console.log('got res', res)
+        })
+    }
+
     sendMessage = message => {
         ws.send(JSON.stringify(message))
     }
@@ -100,9 +110,10 @@ class VideoBox extends React.Component {
             console.error(err)
         }
 
-        ws.onmessage = msg => {
+        ws.onmessage = async msg => {
             console.log('Got message', msg.data)
-
+            // var text = await (new Response(msg.data)).text();
+            // console.log('blob is', text)
             const data = JSON.parse(msg.data)
 
             switch (data.type) {
@@ -148,7 +159,7 @@ class VideoBox extends React.Component {
     }
 
     handleNewStream = (stream) => {
-        console.log('got new stream', Object.keys(stream))
+        console.log('got new stream', stream)
     }
 
     initConnection = async (e) => {
@@ -177,6 +188,10 @@ class VideoBox extends React.Component {
             localRTC: newRTCpeer
         })
 
+        newRTCpeer.onnegotiationneeded = (event) => {
+            console.log('negotiation needed', event)
+        }
+
         this.setUpRTCIceHandler(newRTCpeer)
         this.setUpRTCPeerMedia(newRTCpeer)
 
@@ -200,6 +215,7 @@ class VideoBox extends React.Component {
     }
 
     handleOffer = async (offer, incomingUsername) => {
+        console.log('incoming offer from sever', offer)
         let newRTCpeer = new RTCPeerConnection(configuration)
 
         this.setUpRTCPeerMedia(newRTCpeer)
@@ -271,6 +287,7 @@ class VideoBox extends React.Component {
                         <Form.Control onChange={this.change} name='other_username' type="text" placeholder="Connect to" />
                         <Button onClick={this.initConnection} variant="outline-primary">Init Connection</Button>
                         <Button onClick={this.connectToAll} variant="outline-primary">Connect All</Button>
+                        <Button onClick={this.getStreams} variant="outline-primary">Get Streams</Button>
                     </Col>
                         { 
                             streams.map(stream => (

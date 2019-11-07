@@ -4,14 +4,15 @@ const PORT = 4000;
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const {RTCPeerConnection, RTCIceCandidate, getUserMedia} = require('wrtc')
+const Room = require('./room')
 
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.get('/', (req, res) => {
-  console.log('hit from client')
-  res.send("sent from server!!!")
+  console.log('sp', stream_proxy)
+  res.send(stream_proxy[0])
 });
 
 app.listen(PORT, () => {
@@ -39,12 +40,10 @@ let iceCandidates = []
 
 setUpRTCIceHandler = (RTCpeer, username, answer) => {
   RTCpeer.onicecandidate = (event) => {
-    console.log("gathering ice")
     if (event.candidate) {
       iceCandidates.push(event.candidate)
     }
     if (event.candidate === null) {
-        console.log("gathering complete")
         sendTo(users[username], {
           type: 'answer',
           answer: answer,
@@ -63,17 +62,26 @@ addIceCandidates = (RTCpeer, candidates) => {
 
 const WebSocket = require('ws')
 
-const sendTo = (ws, message, username) => {
+const sendTo = (ws, message, username, media) => {
   if (username){
     Object.keys(users).forEach(user => {
       if (user != username) {
-        users[user].send(JSON.stringify(message))
+        if (media){
+          console.log("stringify", JSON.stringify(message))
+          users[user].send(message)
+        } else {
+          users[user].send(JSON.stringify(message))
+        }
       }
     })
   } else {
     ws.send(JSON.stringify(message))
   }
 }
+
+const room = new Room()
+console.log(room)
+
 
 const wss = new WebSocket.Server({ port: 8080 })
 
@@ -87,21 +95,33 @@ getUserMedia({audio: true,video: true})
     serverRTCpeer.addTrack(track, stream)
   })
 })
-
+called = 0
 let broadcast = {
-  set(obj, prop, stream) {
-    console.log("setting", obj, prop, Object.keys(stream))
-    sendTo(null, {
-      type: 'new-stream',
-      stream: stream
-    }, '-')
-    Reflect.set(obj, prop, stream)
-    return true
+  async set(obj, prop, stream) {
+    array_stream = [stream]
+    console.log('broadcast stream is', stream)
+    if(typeof(stream) == 'object'){ 
+        console.log("new track is", stream.getTracks())
+        let senders = null
+        try {
+          senders = await serverRTCpeer.getSenders().find(s => {
+            return s.track.kind == stream.getTracks()[0].kind
+          })
+        } catch (error) {
+          console.log('sender error', error)
+        }
+        senders.replaceTrack(stream.getTracks()[0])
+        
+        // serverRTCpeer.close()
+        // serverRTCpeer.onicecandidate = null
+        // serverRTCpeer.ontrack = null
+    }
+    return Reflect.set(obj, prop, stream)
   }
 }
 users = {}
 streams = []
-let stream_proxy = new Proxy([], broadcast)
+let stream_proxy = new Proxy(streams, broadcast)
 
 wss.on('connection', ws => {
   console.log('User connected')
@@ -138,8 +158,28 @@ wss.on('connection', ws => {
         addIceCandidates(serverRTCpeer, data.candidates)
 
         serverRTCpeer.ontrack = (event) => {
+          console.log('track', event)
+          console.log('get tracks', event.streams[0].getTracks().length)
           stream_proxy.push(event.streams[0])
-          console.log('got streams', stream_proxy)
+          
+          // console.log(Object.keys(event.streams[0]))
+          // console.log('got streams', stream_proxy)
+          // console.log(JSON.stringify(event.streams[0], null, 4))
+
+        }
+
+        serverRTCpeer.onnegotiationneeded = async (event) => {
+          console.log(event)
+          let offer = null
+          try {
+              offer = await serverRTCpeer.createOffer()
+          } catch (error) {
+              console.log("error creating offer")
+              console.error(error)
+          }  
+
+          serverRTCpeer.setLocalDescription(offer)
+
         }
 
         let answer
@@ -149,12 +189,10 @@ wss.on('connection', ws => {
           console.log("error creating answer")
           console.error(error)
         }
-        console.log(answer)
-
         setUpRTCIceHandler(serverRTCpeer, data.username, answer)
+
         
         serverRTCpeer.setLocalDescription(answer)
-
         break
       case 'answer':
         console.log('Sending answer to: ', 'all other users')
