@@ -5,6 +5,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const {RTCPeerConnection, RTCIceCandidate, getUserMedia} = require('wrtc')
 const Room = require('./room')
+const User = require('./user')
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -80,21 +81,12 @@ const sendTo = (ws, message, username, media) => {
 }
 
 const room = new Room()
-console.log(room)
-
 
 const wss = new WebSocket.Server({ port: 8080 })
 
-let serverRTCpeer = new RTCPeerConnection(configuration)    
-
 localStream = null
 
-getUserMedia({audio: true,video: true})
-.then( stream => {
-  stream.getTracks().forEach((track)=>{
-    serverRTCpeer.addTrack(track, stream)
-  })
-})
+
 called = 0
 let broadcast = {
   async set(obj, prop, stream) {
@@ -119,7 +111,7 @@ let broadcast = {
     return Reflect.set(obj, prop, stream)
   }
 }
-users = {}
+users = new Set()
 streams = []
 let stream_proxy = new Proxy(streams, broadcast)
 
@@ -141,14 +133,17 @@ wss.on('connection', ws => {
       case 'login':
         console.log('User logged', data.username)
 
-        if (!users[data.username]) {
-          users[data.username] = ws
-          ws.username = data.username
-          sendTo(ws, { type: 'login', username: data.username, success: true })
-          sendTo(null, { type: 'new-user', users: Object.keys(users) }, '-')
+        if (!users.has(data.username) && data.username) {
+          const newUser = new User(data.username)
+          newUser.websocket = ws
+          newUser.recieveMessage({type: 'login', success: true})
+
+          users.add(data.username)
+
+          room.addUser(newUser)
+          room.createNewRTCpeer(newUser.username)
         } else {
-          console.log("login failed, user exists")
-          sendTo(ws, { type: 'login', success: false })
+          ws.send(JSON.stringify({ type: 'login', success: false }))
         }
         break
       case 'offer':
@@ -158,9 +153,8 @@ wss.on('connection', ws => {
         addIceCandidates(serverRTCpeer, data.candidates)
 
         serverRTCpeer.ontrack = (event) => {
-          console.log('track', event)
-          console.log('get tracks', event.streams[0].getTracks().length)
-          stream_proxy.push(event.streams[0])
+          room.addMediaStream(event.streams[0])
+          // stream_proxy.push(event.streams[0])
           
           // console.log(Object.keys(event.streams[0]))
           // console.log('got streams', stream_proxy)
