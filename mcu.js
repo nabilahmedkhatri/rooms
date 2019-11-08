@@ -20,69 +20,11 @@ app.listen(PORT, () => {
   console.log("Server is running on port" + PORT);
 });
 
-const configuration = {
-  iceServers: [{
-      urls: [ "stun:u3.xirsys.com" ]
-   }, {
-      username: "i5TYHtlO_stys9vzKotBJUBndcqXQX8739HtgkBip-7RVuviaCnCqINvB0By0S_xAAAAAF2yOEVjb3VudG9sYWY=",
-      credential: "c296a84a-f6b8-11e9-9ec7-86b7e87eee77",
-      urls: [
-          "turn:u3.xirsys.com:80?transport=udp",
-          "turn:u3.xirsys.com:3478?transport=udp",
-          "turn:u3.xirsys.com:80?transport=tcp",
-          "turn:u3.xirsys.com:3478?transport=tcp",
-          "turns:u3.xirsys.com:443?transport=tcp",
-          "turns:u3.xirsys.com:5349?transport=tcp"
-      ]
-   }]
-}
-
-let iceCandidates = []
-
-setUpRTCIceHandler = (RTCpeer, username, answer) => {
-  RTCpeer.onicecandidate = (event) => {
-    if (event.candidate) {
-      iceCandidates.push(event.candidate)
-    }
-    if (event.candidate === null) {
-        sendTo(users[username], {
-          type: 'answer',
-          answer: answer,
-          candidates: iceCandidates,
-          username: 'server'
-        })
-    }
-  }
-}
-
-addIceCandidates = (RTCpeer, candidates) => {
-  candidates.forEach(candidate => {
-    RTCpeer.addIceCandidate(new RTCIceCandidate(candidate))
-  })
-}
-
 const WebSocket = require('ws')
 
-const sendTo = (ws, message, username, media) => {
-  if (username){
-    Object.keys(users).forEach(user => {
-      if (user != username) {
-        if (media){
-          console.log("stringify", JSON.stringify(message))
-          users[user].send(message)
-        } else {
-          users[user].send(JSON.stringify(message))
-        }
-      }
-    })
-  } else {
-    ws.send(JSON.stringify(message))
-  }
-}
+const wss = new WebSocket.Server({ port: 8080 })
 
 const room = new Room()
-
-const wss = new WebSocket.Server({ port: 8080 })
 
 localStream = null
 
@@ -111,7 +53,7 @@ let broadcast = {
     return Reflect.set(obj, prop, stream)
   }
 }
-users = new Set()
+users = {}
 streams = []
 let stream_proxy = new Proxy(streams, broadcast)
 
@@ -133,48 +75,31 @@ wss.on('connection', ws => {
       case 'login':
         console.log('User logged', data.username)
 
-        if (!users.has(data.username) && data.username) {
+        if (!users[data.username] && data.username) {
           const newUser = new User(data.username)
           newUser.websocket = ws
-          newUser.recieveMessage({type: 'login', success: true})
+          newUser.recieveMessage({type: 'login', username: data.username, success: true})
 
-          users.add(data.username)
+          users[data.username] = newUser
 
           room.addUser(newUser)
-          room.createNewRTCpeer(newUser.username)
         } else {
           ws.send(JSON.stringify({ type: 'login', success: false }))
         }
         break
       case 'offer':
-        console.log('recieved offer', data.offer)
-    
+        console.log('recieved offer', data.offer, data.username)
+
+        const user = users[data.username]
+        user.createNewRTCpeer(data.username)
+
+        const serverRTCpeer = user.getRTCpeer()
+
         serverRTCpeer.setRemoteDescription(data.offer)
-        addIceCandidates(serverRTCpeer, data.candidates)
 
-        serverRTCpeer.ontrack = (event) => {
-          room.addMediaStream(event.streams[0])
-          // stream_proxy.push(event.streams[0])
-          
-          // console.log(Object.keys(event.streams[0]))
-          // console.log('got streams', stream_proxy)
-          // console.log(JSON.stringify(event.streams[0], null, 4))
+        user.setUpRTCpeerEventHandlers()
 
-        }
-
-        serverRTCpeer.onnegotiationneeded = async (event) => {
-          console.log(event)
-          let offer = null
-          try {
-              offer = await serverRTCpeer.createOffer()
-          } catch (error) {
-              console.log("error creating offer")
-              console.error(error)
-          }  
-
-          serverRTCpeer.setLocalDescription(offer)
-
-        }
+        user.addIceCandidates(data.candidates)
 
         let answer
         try {
@@ -183,10 +108,8 @@ wss.on('connection', ws => {
           console.log("error creating answer")
           console.error(error)
         }
-        setUpRTCIceHandler(serverRTCpeer, data.username, answer)
 
-        
-        serverRTCpeer.setLocalDescription(answer)
+        user.addAnswer(answer)
         break
       case 'answer':
         console.log('Sending answer to: ', 'all other users')
