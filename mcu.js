@@ -24,6 +24,7 @@ const WebSocket = require('ws')
 
 const wss = new WebSocket.Server({ port: 8080 })
 
+
 const room = new Room()
 
 localStream = null
@@ -77,8 +78,8 @@ wss.on('connection', ws => {
 
         if (!users[data.username] && data.username) {
           const newUser = new User(data.username)
-          newUser.websocket = ws
-          newUser.recieveMessage({type: 'login', username: data.username, success: true})
+          newUser.localWebsocket = ws
+          newUser.recieveMessage('ws', {type: 'login', username: data.username, success: true})
 
           users[data.username] = newUser
 
@@ -129,5 +130,24 @@ wss.on('connection', ws => {
 
   ws.on('close', () => {
     //handle closing
+  })
+})
+
+const remotews = new WebSocket.Server({ port: 9000 })
+
+remotews.on('connection', rws => {
+  console.log('remote user connected')
+
+  rws.on('message', rmessage => {
+    let data = null
+
+    try {
+      data = JSON.parse(rmessage)
+    } catch (error) {
+      console.error('Invalid JSON', error)
+      data = {}
+    }
+
+    console.log('data is ', data)
   })
 })

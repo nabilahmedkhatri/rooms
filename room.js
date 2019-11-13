@@ -7,7 +7,8 @@ class Room {
     }
 
     addUser(user) {
-        this.createNewPeerConnections(user.username)
+        // this.createNewPeerConnections(user.username)
+        this.initiateNewUserConnection(user.username)
         this.users[user.username] = user
         user.joinRoom(this)
     }
@@ -20,6 +21,12 @@ class Room {
     createNewPeerConnections(username) {
         Object.keys(this.users).forEach(user => {
             this.users[user].createNewRemotePeer(username)
+        })
+    }
+
+    initiateNewUserConnection(username) {
+        Object.keys(this.users).forEach(user => {
+            this.users[user].createUserConnection(username)
         })
     }
 

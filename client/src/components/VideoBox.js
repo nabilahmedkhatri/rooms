@@ -7,6 +7,8 @@ import shortid  from 'shortid'
 import update from 'immutability-helper'
 
 const ws = new WebSocket('ws://localhost:8080')
+// client remote web socket
+const crws = new WebSocket('ws://localhost:9000')
 
 const configuration = {
     iceServers: [{
@@ -47,10 +49,11 @@ class VideoBox extends React.Component {
 
     setUpRTCPeerMedia = (RTCpeer) => {
         let stream = this.state.stream
-
-        stream.getTracks().forEach((track)=>{
-            RTCpeer.addTrack(track, stream)
-        })
+        if (stream) {
+            stream.getTracks().forEach((track)=>{
+                RTCpeer.addTrack(track, stream)
+            })
+        }
 
         RTCpeer.ontrack = (event) => {
             console.log('recieved track', event.streams[0])
@@ -62,7 +65,6 @@ class VideoBox extends React.Component {
 
     setUpRTCIceHandler = (RTCpeer, incomingUsername) => {
         RTCpeer.onicecandidate = (event) => {
-            console.log("gathering")
             if (event.candidate) {
                 if (!incomingUsername) {
                     this.setState({
@@ -70,25 +72,25 @@ class VideoBox extends React.Component {
                     })
                 } else {
                     const peers = {...this.state.peers}
-                    const updatedPeers = update(peers, {incomingUsername: {"iceCandidates": {$push: event.candidate}}})
+                    peers[incomingUsername]["iceCandidates"].push(event.candidate)
                     this.setState({
-                        peers: updatedPeers
+                        peers: peers
                     })
                 }
             }
             if (event.candidate === null) {
                 console.log('gathered')
                 if (!incomingUsername) {
-                    this.sendMessage({
+                    this.sendMessage('ws', {
                         type: 'offer',
                         offer: this.state.localOffer,
                         username: this.state.username,
                         candidates: this.state.localIceCandidates
                     })
                 } else {
-                    this.sendMessage({
-                        type: 'answer',
-                        answer: this.state.peers[incomingUsername]["answer"],
+                    this.sendMessage('rws', {
+                        type: 'offer',
+                        offer: this.state.peers[incomingUsername]["offer"],
                         username: this.state.username,
                         remoteUsername: incomingUsername,
                         candidates: this.state.peers[incomingUsername]["iceCandidates"]
@@ -105,7 +107,7 @@ class VideoBox extends React.Component {
     }
 
     login = () => {
-        this.sendMessage({ type: 'login', username: this.state.username })
+        this.sendMessage('ws', { type: 'login', username: this.state.username })
     }
 
     getStreams = () => {
@@ -115,11 +117,20 @@ class VideoBox extends React.Component {
         })
     }
 
-    sendMessage = message => {
-        ws.send(JSON.stringify(message))
+    sendMessage = (socket, message)  => {
+        if (socket == 'ws') {
+            ws.send(JSON.stringify(message))
+        } else {
+            crws.send(JSON.stringify(message))
+        }
     }
 
     componentDidMount() {
+        this.setUpLocalMessaging()
+        this.setUpRemoteMessaging()
+    }
+
+    setUpLocalMessaging = () => {
         ws.onopen = () => {
             console.log('Connected to the signaling server')
         }
@@ -138,6 +149,9 @@ class VideoBox extends React.Component {
                 case 'login':
                     this.handeLogin(data.username, data.success)
                     break
+                case 'new-connection':
+                    this.handleNewConnection(data.newUsername)
+                    break
                 case 'new-user':
                     this.handleNewUser(data.users)
                     break
@@ -152,6 +166,28 @@ class VideoBox extends React.Component {
                     break
                 case 'candidate':
                     this.handleCandidate(data.candidates, data.username)
+                    break
+                default:
+                    break
+            }
+        }
+    }
+
+    setUpRemoteMessaging = () => {
+        crws.onopen = () => {
+            console.log("connected to remote websocket")
+        }
+
+        crws.onerror = err => {
+            console.error(err)
+        }
+
+        crws.onmessage = msg => {
+            const data = JSON.parse(msg.data)
+
+            switch (data.type) {
+                case 'new-connection':
+                    this.handleNewConnection(data.newUsername)
                     break
                 default:
                     break
@@ -284,6 +320,47 @@ class VideoBox extends React.Component {
         candidates.forEach((candidate) => {
             rtcPeer.addIceCandidate(new RTCIceCandidate(candidate))
         })
+    }
+
+    handleNewConnection = (newUsername) => {
+        console.log('new user', newUsername)
+        let newRTCpeer = new RTCPeerConnection(configuration)
+        this.setUpRTCPeerMedia(newRTCpeer)
+        this.setUpRTCIceHandler(newRTCpeer, newUsername)
+
+        let peers = {...this.state.peers}
+
+        peers[newUsername] = {}
+        peers[newUsername]["iceCandidates"] = []
+        peers[newUsername]["connection"] = newRTCpeer
+
+        this.setState({
+            peers: peers
+        })
+
+        this.createNewConnOffer(newRTCpeer, newUsername)
+    }
+
+    createNewConnOffer = async (peer, newUsername) => {
+        let offer = null
+        try {
+            offer = await peer.createOffer()
+        } catch (error) {
+            console.log("error creating offer")
+            console.error(error)
+        } 
+
+        let peers = {...this.state.peers}
+
+        peers[newUsername]["offer"] = offer
+
+        this.setState({
+            peers: peers
+        })
+
+        peers[newUsername]["connection"].setLocalDescription(offer)
+        
+        console.log('offer is', offer)
     }
 
     videoError = (err) => {

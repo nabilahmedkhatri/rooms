@@ -27,20 +27,36 @@ class User {
         this.active = false
     }
 
-    set websocket(ws) {
+    set localWebsocket(ws) {
         this.ws = ws
     }    
+
+    set remoteWebsocket(rwx) {
+        this.rws = rws
+    }
 
     get username() {
         return this.name
     }
 
-    recieveMessage(payload) {
-        this.ws.send(JSON.stringify(payload))
+    recieveMessage(wsType, payload) {
+        if (wsType == 'ws') {
+            this.ws.send(JSON.stringify(payload))
+        } else {
+            // rws.send(JSON.stringify(payload))
+        }
     }
 
     joinRoom(room) {
         this.room = room
+    }
+
+    createUserConnection(username) {
+        console.log('sending new name', username)
+        this.recieveMessage('ws', {
+            type: 'new-connection',
+            newUsername: username
+        })
     }
 
     createNewRTCpeer() {
