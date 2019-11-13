@@ -148,6 +148,16 @@ remotews.on('connection', rws => {
       data = {}
     }
 
-    console.log('data is ', data)
+    switch(data.type) {
+      case 'offer':
+        const user = users[data.username]
+        
+        user.remoteWebsocket = rws
+        user.handleOffer(data.remoteUsername, data.offer)
+        break
+      default:
+        break
+    }
+
   })
 })

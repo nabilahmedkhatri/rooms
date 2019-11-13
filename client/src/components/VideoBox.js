@@ -189,6 +189,9 @@ class VideoBox extends React.Component {
                 case 'new-connection':
                     this.handleNewConnection(data.newUsername)
                     break
+                case 'answer':
+                    this.handleNewAnswer(data.answer, data.candidates, data.username)
+                    break
                 default:
                     break
             }
@@ -361,6 +364,16 @@ class VideoBox extends React.Component {
         peers[newUsername]["connection"].setLocalDescription(offer)
         
         console.log('offer is', offer)
+    }
+
+    handleNewAnswer = (answer, candidates, newUsername) => {
+        console.log('new answer is ', answer, 'from', newUsername)
+        let peers = {...this.state.peers}
+        peers[newUsername]["connection"].setRemoteDescription(new RTCSessionDescription(answer))
+
+        candidates.forEach(candidate => {
+            peers[newUsername]["connection"].addIceCandidate(new RTCIceCandidate(candidate))
+        })
     }
 
     videoError = (err) => {

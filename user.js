@@ -24,6 +24,7 @@ class User {
         this.localIceCandidates = []
         this.room = null
         this.remotePeers = {}
+        this.RTCpeers = {}
         this.active = false
     }
 
@@ -31,7 +32,7 @@ class User {
         this.ws = ws
     }    
 
-    set remoteWebsocket(rwx) {
+    set remoteWebsocket(rws) {
         this.rws = rws
     }
 
@@ -43,7 +44,7 @@ class User {
         if (wsType == 'ws') {
             this.ws.send(JSON.stringify(payload))
         } else {
-            // rws.send(JSON.stringify(payload))
+            this.rws.send(JSON.stringify(payload))
         }
     }
 
@@ -153,7 +154,7 @@ class User {
 
     addIceCandidates(candidates) {
         candidates.forEach(candidate => {
-            this.RTCpeer.addIceCandidate(new RTCIceCandidate(candidate))
+            this.RTCpeers.addIceCandidate(new RTCIceCandidate(candidate))
           })
     }
 
@@ -167,9 +168,52 @@ class User {
         }
     }
 
+    handleOffer(newUserConnection, offer) {
+        const newPeer = new RTCPeerConnection(configuration)
+        this.RTCpeers[newUserConnection] = {}
+        this.RTCpeers[newUserConnection]["connection"] = newPeer
+        this.RTCpeers[newUserConnection]["iceCandidates"] = []
+
+        this.addNewConnectionIceHandler(newUserConnection)
+
+        this.RTCpeers[newUserConnection]["connection"].setRemoteDescription(offer)
+        this.createNewAnswer(newUserConnection)
+    }
+
+    createNewAnswer = async (newUserConnection) => {
+        let answer = null
+        try {
+            answer = await this.RTCpeers[newUserConnection]["connection"].createAnswer()
+        } catch (err) {
+            console.error("error in creating answer", err)
+        }
+        console.log(answer)
+        this.RTCpeers[newUserConnection]["answer"] = answer
+
+        this.RTCpeers[newUserConnection]["connection"].setLocalDescription(answer)
+    }
+
+    addNewConnectionIceHandler(newUsername) {
+        this.RTCpeers[newUsername]["connection"].onicecandidate = (event) => {
+            console.log('new event', event)
+            if (event.candidate){
+                this.RTCpeers[newUsername]["iceCandidates"].push(event.candidate)
+            }
+
+            if (event.candidate === null) {
+                this.recieveMessage('rws', {
+                    type: 'answer',
+                    answer: this.RTCpeers[newUsername]["answer"],
+                    candidates: this.RTCpeers[newUsername]["iceCandidates"],
+                    username: newUsername
+                })
+            }
+        }
+    }
+
     addAnswer(answer) {
         this.answer = answer
-        this.RTCpeer.setLocalDescription(answer)
+        this.RTCpeers.setLocalDescription(answer)
     }
 
     addMediaStream(stream) {
@@ -177,7 +221,7 @@ class User {
     }
 
     getRTCpeer() {
-        return this.RTCpeer
+        return this.RTCpeers
     }
 
 }
