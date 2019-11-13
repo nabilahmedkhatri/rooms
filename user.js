@@ -21,8 +21,10 @@ class User {
     constructor(name) {
         this.name = name
         this.id = Math.random()
-        this.iceCandidates = []
+        this.localIceCandidates = []
         this.room = null
+        this.remotePeers = {}
+        this.active = false
     }
 
     set websocket(ws) {
@@ -42,35 +44,91 @@ class User {
     }
 
     createNewRTCpeer() {
-        let RTCpeer = new RTCPeerConnection(configuration)
-        this.createDummyMedia()
-        this.RTCpeer = RTCpeer
+        let localRTCpeer = new RTCPeerConnection(configuration)
+        this.createDummyMedia(localRTCpeer)
+        this.RTCpeer = localRTCpeer
     }
 
-    createDummyMedia() {
+    createNewRemotePeer(username) {
+        console.log('creating remote peer for ', username, 'in', this.username)
+        let remoteRTCpeer = new RTCPeerConnection(configuration)
+        this.createDummyMedia(remoteRTCpeer)
+        this.remotePeers[username] = {}
+        this.remotePeers[username]["connection"] = remoteRTCpeer
+
+        this.setUpRTCpeerEventHandlers(remoteRTCpeer, username)
+        this.connectRemotePeer(username)
+    }
+
+    createDummyMedia(peer) {
         getUserMedia({audio: true,video: true})
         .then( stream => {
             stream.getTracks().forEach((track)=>{
-                this.RTCpeer.addTrack(track, stream)
+                peer.addTrack(track, stream)
             })
         })
     }
 
-    setUpRTCpeerEventHandlers() {
-        this.setUpIceHandler()
-        this.setUpTrackHandler()
+    async connectRemotePeer(username) {
+        const remotePeer = this.remotePeers[username]
+        let offer = null
+        try {
+            offer = await remotePeer["connection"].createOffer()
+        } catch (err) {
+            console.error("error in offer", err)
+        }
+        remotePeer["offer"] = offer
+        remotePeer["connection"].setLocalDescription(offer)
+        this.recieveMessage({
+            type: 'offer',
+            offer: remotePeer["offer"],
+            candidates: remotePeer["iceCandidates"],
+            username: username
+        })
+        console.log("after ", remotePeer["connection"])
+
     }
 
-    setUpIceHandler() {
-        this.RTCpeer.onicecandidate = (event) => {
+    setUpRTCpeerEventHandlers(peer, username) {
+        if (username == 'local') {
+            console.log('local')
+            this.setUpLocalIceCandidate(peer)
+        } else {
+            this.setUpRemoteIceCandidate(peer, username)
+        }
+        // this.setUpIceHandler(peer, username)
+        this.setUpTrackHandler(peer, username)
+    }
+
+    setUpRemoteIceCandidate(peer, remoteUsername) {
+        console.log("setting up remote")
+        peer.onicecandidate = (event) => {
+            console.log("gather remotely for ", remoteUsername)
             if (event.candidate) {
-                this.iceCandidates.push(event.candidate)
+                this.remotePeers[remoteUsername]["iceCandidates"].push(event.candidate)
+            }
+            if (event.candidate === null) {
+                this.recieveMessage({
+                    type: 'offer',
+                    offer: this.remotePeers[remoteUsername]["offer"],
+                    candidates: this.remotePeers[remoteUsername]["iceCandidates"],
+                    username: username
+                })
+            }
+        }
+    }
+
+
+    setUpLocalIceCandidate(peer) {
+        peer.onicecandidate = (event) => {
+            if (event.candiate) {
+                this.localIceCandidates.push(event.candidate)
             }
             if (event.candidate === null) {
                 this.recieveMessage({
                     type: 'answer',
                     answer: this.answer,
-                    candidates: this.iceCandidates,
+                    candidates: this.localIceCandidates,
                     username: this.username
                 })
             }
@@ -83,10 +141,13 @@ class User {
           })
     }
 
-    setUpTrackHandler() {
-        this.RTCpeer.ontrack = (event) => {
-            this.mediaStream = event.streams[0]
-            this.room.newMediaStreamAdded(this.username)
+    setUpTrackHandler(peer, username) {
+        peer.ontrack = (event) => {
+            if (!username) {
+                this.mediaStream = event.streams[0]
+                this.active = true
+                this.room.newMediaStreamAdded(this.username)
+            }
         }
     }
 

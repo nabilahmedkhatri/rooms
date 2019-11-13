@@ -23,6 +23,7 @@
     "body-parser": "^1.19.0",
     "cors": "^2.8.5",
     "express": "^4.17.1",
+    "immutability-helper": "^3.0.1",
     "lodash.clonedeep": "^4.5.0",
     "websocket": "^1.0.30",
     "wrtc": "^0.4.2",

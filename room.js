@@ -7,14 +7,24 @@ class Room {
     }
 
     addUser(user) {
+        this.createNewPeerConnections(user.username)
         this.users[user.username] = user
         user.joinRoom(this)
     }
 
     newMediaStreamAdded(username) {
         const user = this.users[username]
-        this.createNewPeerConnections()
-        this.relayMediaStreams()
+        this.relayMediaStreams(username)
+    }
+
+    createNewPeerConnections(username) {
+        Object.keys(this.users).forEach(user => {
+            this.users[user].createNewRemotePeer(username)
+        })
+    }
+
+    relayMediaStreams(username) {
+        console.log(username)
     }
 
 }

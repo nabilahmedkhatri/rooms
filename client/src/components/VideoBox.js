@@ -4,10 +4,9 @@ import { Form } from 'react-bootstrap'
 import axios from 'axios'
 import Stream from './Stream'
 import shortid  from 'shortid'
+import update from 'immutability-helper'
 
 const ws = new WebSocket('ws://localhost:8080')
-// ws.binaryType = "arraybuffer"
-const Port = "http://localhost:4000"
 
 const configuration = {
     iceServers: [{
@@ -39,7 +38,7 @@ class VideoBox extends React.Component {
             localOffer: null,
             newRTC: null,
             stream: null,
-            iceCandidates: [],
+            localIceCandidates: [],
             peers: {},
             streams: []
         }
@@ -61,21 +60,40 @@ class VideoBox extends React.Component {
         }
     }
 
-    setUpRTCIceHandler = (RTCpeer, username) => {
+    setUpRTCIceHandler = (RTCpeer, incomingUsername) => {
         RTCpeer.onicecandidate = (event) => {
+            console.log("gathering")
             if (event.candidate) {
-                this.setState({
-                    iceCandidates: [...this.state.iceCandidates, event.candidate]
-                })
+                if (!incomingUsername) {
+                    this.setState({
+                        localIceCandidates: [...this.state.localIceCandidates, event.candidate]
+                    })
+                } else {
+                    const peers = {...this.state.peers}
+                    const updatedPeers = update(peers, {incomingUsername: {"iceCandidates": {$push: event.candidate}}})
+                    this.setState({
+                        peers: updatedPeers
+                    })
+                }
             }
             if (event.candidate === null) {
-                console.log('gathering')
-                this.sendMessage({
-                    type: 'offer',
-                    offer: this.state.localOffer,
-                    username: this.state.username,
-                    candidates: this.state.iceCandidates
-                })
+                console.log('gathered')
+                if (!incomingUsername) {
+                    this.sendMessage({
+                        type: 'offer',
+                        offer: this.state.localOffer,
+                        username: this.state.username,
+                        candidates: this.state.localIceCandidates
+                    })
+                } else {
+                    this.sendMessage({
+                        type: 'answer',
+                        answer: this.state.peers[incomingUsername]["answer"],
+                        username: this.state.username,
+                        remoteUsername: incomingUsername,
+                        candidates: this.state.peers[incomingUsername]["iceCandidates"]
+                    })
+                }
             }
         }
     }
@@ -215,11 +233,11 @@ class VideoBox extends React.Component {
     }
 
     handleOffer = async (offer, incomingUsername) => {
-        console.log('incoming offer from sever', offer)
+        console.log('incoming offer from server', offer)
         let newRTCpeer = new RTCPeerConnection(configuration)
 
         this.setUpRTCPeerMedia(newRTCpeer)
-        this.setUpRTCIceHandler(newRTCpeer)
+        this.setUpRTCIceHandler(newRTCpeer, incomingUsername)
 
         newRTCpeer.setRemoteDescription(offer)
 
@@ -231,21 +249,18 @@ class VideoBox extends React.Component {
             console.error(error)
         }
 
-        newRTCpeer.setLocalDescription(answer)
-
         let peers = {...this.state.peers}
 
-        peers[incomingUsername] = newRTCpeer
+        peers[incomingUsername] = {}
+        peers[incomingUsername]["iceCandidates"] = []
+        peers[incomingUsername]["connection"] = newRTCpeer
+        peers[incomingUsername]["answer"] = answer
+
+        
+        newRTCpeer.setLocalDescription(answer)
 
         this.setState({
             peers: peers
-        })
-
-        this.sendMessage({
-            type: 'answer',
-            answer: answer,
-            username: this.state.username,
-            answerToUsername: incomingUsername
         })
     }
 
@@ -262,7 +277,7 @@ class VideoBox extends React.Component {
         })
     }
 
-    handleCandidate = (candidates, incomigUsername) => {
+    handleCandidate = (candidates, incomingUsername) => {
         // let peers = {...this.state.peers}
         // let rtcPeer = peers[incomingUsername]
         let rtcPeer = this.state.localRTC

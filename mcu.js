@@ -88,7 +88,7 @@ wss.on('connection', ws => {
         }
         break
       case 'offer':
-        console.log('recieved offer', data.offer, data.username)
+        // console.log('recieved offer', data.offer, data.username)
 
         const user = users[data.username]
         user.createNewRTCpeer(data.username)
@@ -97,7 +97,7 @@ wss.on('connection', ws => {
 
         serverRTCpeer.setRemoteDescription(data.offer)
 
-        user.setUpRTCpeerEventHandlers()
+        user.setUpRTCpeerEventHandlers(serverRTCpeer, "local")
 
         user.addIceCandidates(data.candidates)
 
@@ -112,12 +112,8 @@ wss.on('connection', ws => {
         user.addAnswer(answer)
         break
       case 'answer':
-        console.log('Sending answer to: ', 'all other users')
-        sendTo(users[data.answerToUsername], {
-          type: 'answer',
-          answer: data.answer,
-          username: data.username
-        })
+        console.log('got answer', data.answer, 'from', data.username, 'to', data.remoteUsername, 'containing', data.iceCandidates)
+        
         break
       case 'candidate':
         console.log('Sending candidate to: all other users')
