@@ -17,7 +17,7 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log("Server is running on port" + PORT);
+  console.log("Server is running on port " + PORT);
 });
 
 const WebSocket = require('ws')
@@ -89,28 +89,14 @@ wss.on('connection', ws => {
         }
         break
       case 'offer':
-        // console.log('recieved offer', data.offer, data.username)
+        // console.log('recieved offer', data.offer, data.username, "with candidates", data.candidates)
 
         const user = users[data.username]
-        user.createNewRTCpeer(data.username)
+        user.createNewLocalRTCpeer(data.offer, data.candidates)
 
-        const serverRTCpeer = user.getRTCpeer()
 
-        serverRTCpeer.setRemoteDescription(data.offer)
+        // user.addIceCandidates(data.candidates)
 
-        user.setUpRTCpeerEventHandlers(serverRTCpeer, "local")
-
-        user.addIceCandidates(data.candidates)
-
-        let answer
-        try {
-          answer = await serverRTCpeer.createAnswer()
-        } catch (error) {
-          console.log("error creating answer")
-          console.error(error)
-        }
-
-        user.addAnswer(answer)
         break
       case 'answer':
         console.log('got answer', data.answer, 'from', data.username, 'to', data.remoteUsername, 'containing', data.iceCandidates)
@@ -153,7 +139,7 @@ remotews.on('connection', rws => {
         const user = users[data.username]
         
         user.remoteWebsocket = rws
-        user.handleOffer(data.remoteUsername, data.offer)
+        user.handleOffer(data.remoteUsername, data.offer, data.candidates)
         break
       default:
         break

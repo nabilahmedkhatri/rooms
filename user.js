@@ -40,6 +40,10 @@ class User {
         return this.name
     }
 
+    get localRTCpeer() {
+        return this.localRTCpeer
+    }
+
     recieveMessage(wsType, payload) {
         if (wsType == 'ws') {
             this.ws.send(JSON.stringify(payload))
@@ -52,6 +56,7 @@ class User {
         this.room = room
     }
 
+    // if new user enters room, initiate new connection
     createUserConnection(username) {
         console.log('sending new name', username)
         this.recieveMessage('ws', {
@@ -60,10 +65,45 @@ class User {
         })
     }
 
-    createNewRTCpeer() {
+    createNewLocalRTCpeer(offer, candidates) {
         let localRTCpeer = new RTCPeerConnection(configuration)
         this.createDummyMedia(localRTCpeer)
-        this.RTCpeer = localRTCpeer
+        localRTCpeer.setRemoteDescription(offer)
+
+        this.RTCpeers["local"] = {}
+        this.RTCpeers["local"]["connection"] = localRTCpeer
+        this.RTCpeers["local"]["iceCandidates"] = []
+
+        this.addIceCandidates("local", candidates)
+        
+        this.addLocalIceHandler()
+        this.addLocalTrackHandler()
+        this.createNewAnswer("local")
+    }
+
+    addLocalIceHandler() {
+        this.RTCpeers["local"]["connection"].onicecandidate = (event) => {
+            if (event.candidate) {
+                this.RTCpeers["local"]["iceCandidates"].push(event.candidate)
+            }
+            if (event.candidate === null) {
+                this.recieveMessage('ws', {
+                    type: 'answer',
+                    answer: this.RTCpeers["local"]["answer"],
+                    candidates: this.RTCpeers["local"]["iceCandidates"],
+                    username: this.username
+                })
+            }
+        }
+    }
+
+    addLocalTrackHandler() {
+        this.RTCpeers["local"]["connection"].ontrack = (event) => {
+            console.log('track recieved', event)
+            this.mediaStream = event.streams[0]
+            this.active = true
+            this.room.newMediaStreamAdded(this.username, event.streams[0])
+        }
     }
 
     createNewRemotePeer(username) {
@@ -152,28 +192,31 @@ class User {
         }
     }
 
-    addIceCandidates(candidates) {
+    addIceCandidates(username, candidates) {
         candidates.forEach(candidate => {
-            this.RTCpeers.addIceCandidate(new RTCIceCandidate(candidate))
+            this.RTCpeers[username]["connection"].addIceCandidate(new RTCIceCandidate(candidate))
           })
     }
 
     setUpTrackHandler(peer, username) {
+        console.log('setting up for', this.username)
         peer.ontrack = (event) => {
+            console.log('track recieved', event)
             if (!username) {
                 this.mediaStream = event.streams[0]
                 this.active = true
-                this.room.newMediaStreamAdded(this.username)
+                this.room.newMediaStreamAdded(this.username, event.streams[0])
             }
         }
     }
 
-    handleOffer(newUserConnection, offer) {
+    handleOffer(newUserConnection, offer, candidates) {
         const newPeer = new RTCPeerConnection(configuration)
         this.RTCpeers[newUserConnection] = {}
         this.RTCpeers[newUserConnection]["connection"] = newPeer
         this.RTCpeers[newUserConnection]["iceCandidates"] = []
 
+        this.addIceCandidates(newUserConnection, candidates)
         this.addNewConnectionIceHandler(newUserConnection)
 
         this.RTCpeers[newUserConnection]["connection"].setRemoteDescription(offer)
@@ -187,7 +230,6 @@ class User {
         } catch (err) {
             console.error("error in creating answer", err)
         }
-        console.log(answer)
         this.RTCpeers[newUserConnection]["answer"] = answer
 
         this.RTCpeers[newUserConnection]["connection"].setLocalDescription(answer)
@@ -195,7 +237,6 @@ class User {
 
     addNewConnectionIceHandler(newUsername) {
         this.RTCpeers[newUsername]["connection"].onicecandidate = (event) => {
-            console.log('new event', event)
             if (event.candidate){
                 this.RTCpeers[newUsername]["iceCandidates"].push(event.candidate)
             }
@@ -211,13 +252,44 @@ class User {
         }
     }
 
+    
+
     addAnswer(answer) {
         this.answer = answer
         this.RTCpeers.setLocalDescription(answer)
     }
 
-    addMediaStream(stream) {
-        console.log(this.username, stream)
+   async addNewMediaStream(username, stream) {
+        console.log("replacing track for", this.username, "with ", username, "with", stream)
+        let senders = null
+        try {
+            const peer = this.RTCpeers[username]["connection"]
+            senders = await peer.getSenders()
+            // .find(s => {
+            //     return s.track ? s.track.kind == stream.getTracks()[0].kind : false
+            // })
+        } catch (error) {
+            console.log('sender error', error)
+        }
+        if (senders) {
+            console.log(senders)
+            senders[0].replaceTrack(stream.getTracks()[0])
+        }
+        else 
+            this.addStream(username, stream)
+    }
+
+    addStream(username, stream) {
+        // console.log('stream before', stream.getTracks())
+        const before = stream.getTracks()
+        var after = stream.getTracks()
+        console.log('stream before', before == after)
+        stream.getTracks().forEach((track)=>{
+            this.RTCpeers[username]["connection"].addTrack(track, stream)
+        })
+        after = stream.getTracks()
+        console.log('stream after', before == after)
+
     }
 
     getRTCpeer() {

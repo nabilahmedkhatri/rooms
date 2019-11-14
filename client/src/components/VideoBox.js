@@ -361,9 +361,7 @@ class VideoBox extends React.Component {
             peers: peers
         })
 
-        peers[newUsername]["connection"].setLocalDescription(offer)
-        
-        console.log('offer is', offer)
+        peers[newUsername]["connection"].setLocalDescription(offer)        
     }
 
     handleNewAnswer = (answer, candidates, newUsername) => {
