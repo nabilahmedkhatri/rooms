@@ -272,7 +272,7 @@ class VideoBox extends React.Component {
     }
 
     handleOffer = async (offer, incomingUsername) => {
-        console.log('incoming offer from server', offer)
+        // console.log('incoming offer from server', offer)
         let newRTCpeer = new RTCPeerConnection(configuration)
 
         this.setUpRTCPeerMedia(newRTCpeer)
@@ -303,13 +303,15 @@ class VideoBox extends React.Component {
         })
     }
 
-    handleAnswer = (answer, candidates, incomingUsername) => {
+    handleAnswer = (answer, candidates) => {
         // let peers = {...this.state.peers}
         // let rtcPeer = peers[incomingUsername]
 
         let rtcPeer = this.state.localRTC
 
         rtcPeer.setRemoteDescription(new RTCSessionDescription(answer))
+        const transciever = rtcPeer.getTransceivers()
+        console.log("transcieve is ", transciever)
 
         candidates.forEach((candidate) => {
             rtcPeer.addIceCandidate(new RTCIceCandidate(candidate))

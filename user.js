@@ -69,6 +69,10 @@ class User {
         let localRTCpeer = new RTCPeerConnection(configuration)
         this.createDummyMedia(localRTCpeer)
         localRTCpeer.setRemoteDescription(offer)
+        const transciever = localRTCpeer.getTransceivers()
+        console.log("transcieve is reciever ", transciever[0].receiver.track.id)
+        console.log("transcieve is sender ", transciever[0].sender.track)
+
 
         this.RTCpeers["local"] = {}
         this.RTCpeers["local"]["connection"] = localRTCpeer
@@ -118,9 +122,11 @@ class User {
     }
 
     createDummyMedia(peer) {
+        console.log('adding dummy media')
         getUserMedia({audio: true,video: true})
         .then( stream => {
             stream.getTracks().forEach((track)=>{
+                console.log('track is', track)
                 peer.addTrack(track, stream)
             })
         })
